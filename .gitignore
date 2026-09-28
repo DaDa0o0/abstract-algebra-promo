@@ -1,0 +1,8 @@
+*.mp4
+music.wav
+contact.jpg
+shots/
+__pycache__/
+.venv/
+.DS_Store
+Thumbs.db
