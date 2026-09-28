@@ -6,7 +6,7 @@
 
 ## 在线观看与文件
 
-- [下载分享版 MP4](../../releases/latest)（约 366 MB）
+- [下载分享版 MP4](https://github.com/AnctyEnly453/abstract-algebra-promo/releases/download/v1.0.0/abstract-algebra-promo-1080p.mp4)（约 366 MB）
 - [下载单文件 HTML 播放器](抽象代数宣传片.html)（内嵌配乐；字体需要联网加载）
 - 在本地打开 `promo.html` 也可以播放，需将 `music.mp3` 放在同一目录。
 
