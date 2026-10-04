@@ -1,49 +1,70 @@
-"""Score and sound design for "How a large language model works": A minor -> C major, 96 BPM, 24 bars of 2.5 s.
+"""Score and sound design for "How a large language model works" (the 2:50 cut): A minor -> C major, 96 BPM, 68 bars of 2.5 s.
 
-    python3 llm-intro/music_llm.py [--cues FILE] [--out-dir DIR]     -> music.wav, music.mp3 (44.1 kHz stereo, 60.0 s)
+    python3 llm-intro/music_llm.py [--cues FILE] [--out-dir DIR]     -> music.wav, music.mp3 (44.1 kHz stereo, 170.0 s)
 
-Locked to the visual bar grid: bar k starts at k * 2.5 s, one beat is 0.625 s.  Every drum hit sits on that grid.
+Locked to the visual bar grid: bar k starts at k * 2.5 s, one beat is 0.625 s.  Every kick sits on that grid (kick onsets are
+only ever placed on beats); the chord changes and section changes sit on beats too.
 
-Structure (energy map, global time):
-    bars 0-1    0-5 s     sparse: heartbeat pulse, glassy keys play the "next word" motif as a question (it hangs on the
-                          5th), a riser peaks exactly at 3.125 s (bar 1 beat 2) where the title chord (Fmaj7) blooms
-    bars 2-5    5-15 s    curious groove: kalimba/marimba 8th arps, soft kick on 1 and 3, shaker/hat, warm pad
-    bars 6-8    15-22.5   build: strings enter, arps in 16ths, pad filter rises, snare roll + riser into 22.5 s
-    bars 9-10   22.5-27.5 the "aha": lift to C major, bright bells, light drums, space for 'up'/'chime'
-    bars 11-13  27.5-35   dark and driving: sub pulsing in 8ths, low string ostinato, data-tick hats, E7 tension
-    bars 14-16  35-42.5   peak: four-on-the-floor, snare/clap, bass line, 16th arps, a riser through the last bar
-    bars 17-19  42.5-50   release: felt piano + pad + gentle beat (human feel), building slowly
-    bars 20-23  50-60     finale: pad swell, the motif RESOLVED over strings, full beat in bars 21-22,
-                          last bar = long C major(add9) chord that rings and fades to true silence by 59.8 s
+Structure (global time; bars in brackets; the section table of SPEC.md section 2):
+    hook      0-10      [0-3]    sparse heartbeat pulse, glassy bell / felt keys ask the "next word" motif (it hangs on the 5th) under the
+                                 typing (0.5-2.7 s), a riser that peaks EXACTLY at 6.25 s where the title chord (Fmaj7) blooms: the bloom is
+                                 kept at about -12 LUFS momentary (3 dB under the peak of the piece), preceded by an 80 ms gap in the whole mix
+    tokens    10-25     [4-9]    curious light groove: kalimba / marimba 8ths, soft kick on 1 and 3, shaker + hats with air; Am F C G
+    vectors   25-40     [10-15]  the groove develops (bell sparkle, 8th bass, wider pad); brighter from 31.25 s (16th arps, strings, clap,
+                                 pad filter opens); a lift 37.5-40 s (strings, snare roll, riser) that is released at 40 s
+    attention 40-60     [16-23]  three steps: A 40-48.75 restrained (felt-piano ostinato, heartbeat sub); B 48.75-53.75 strings enter,
+                                 soft kick, 8th bass; C 53.75-60 the full build (4-on-the-floor, 16ths, snare rolls, riser into 60); >= 4 dB A -> C
+    predict   60-80     [24-31]  the aha: lift to C major at 60 (brighter, not louder: calm and sparkly 60-68.1); suspense 68.1-71.25 (dark, sparse,
+                                 low drone, clock-like heartbeat, room for the roulette ticks, a gathering tension) -> the draw lands at 71.25 (soft
+                                 C major) and a calm sparse hold until 74.375, where a light drum loop starts (to 80)
+    read      80-95     [32-37]  darker, urgent, driving: sub pulsing in 8ths, low string ostinato, data-tick hats; from 87.5 s a suspended
+                                 questioning colour (Asus / Dm, the ostinato dissolves into held notes, the question on felt piano), then 92.5-95 E7 tension
+    learn     95-115    [38-45]  restrained motor ostinato 95-101.25; steady build 101.25-108.75; PEAK 108.75-115 (4-on-the-floor, clap, bass line,
+                                 16th arps, taiko, a riser through the last bar): the loudest sustained part of the piece
+    teach     115-140   [46-55]  release and warmth: felt piano + pad + a gentle beat; questioning sparse 115-121.9; warmer 121.9-128.75;
+                                 strings build 128.75-136.25; a warm resolved C major chord 136.25-140
+    chat      140-155   [56-61]  clean light pulse (soft four-on-the-floor, pluck / kalimba 8ths); from 148.125 s slightly uneasy (Dm / Asus /
+                                 Gsus, no kick, held tones, the question again, a soft riser); resolves at 155 s
+    finale    155-170   [62-67]  pad swell and the motif ANSWERED over strings 155-163.5 (it lands on the tonic), a growing beat, a sparse collapse
+                                 163.5-165, the title hit at 165.0 s (80 ms gap, then C major with kick, taiko, crash), the last tonic rings and fades to
+                                 true silence by 169.8 s
 
-The motif ("next word"): A4 C5 E5 D5 then E5 held (question: hangs on the 5th) / C5 held (answer: lands on the tonic).
-Chords by bar: 0-1 Am (F from 3.125 s) | 2-5 Am F C G | 6-8 Am F G | 9-10 C G | 11-13 Am Dm E | 14-16 Am F G |
-17-19 C F G | 20-23 Am F Am-G C   (table CHORDS below).
-Question motif over G chords is G B D E D (a C would be an avoid-note against the chord's B).
+Loudness arc of the bed alone (K-weighted momentary, median per section, dB re the learn peak, measured on the finished mp3): hook -11 (sparse; the bloom
+at 6.25 s stays at about -12 LUFS, 3.5 dB under the loudest moment), tokens -6.6, vectors -5.5, attention A -8 / B -6 / C -3.4 (>= 4 dB A -> C), predict
+-5.8 (calm) / -9.5 (suspense) / -7.7 (hold) / -6.3 (loop), read -4.2 (questioning -5.7), learn restrained -5.9 -> build -3.5 -> PEAK 0, teach -9.9 -> -5.3, chat
+-6.8, finale -1.1 (title hit and ring -0.9).  ARC is a table of gain breakpoints, one level per ~2.5 s inside a section and a step between sections: it was fitted
+(per-segment knobs, a few iterations) so that the bed alone, measured through the real master chain, follows those targets.  The master then levels the whole
+piece to -14 LUFS.  The sfx follow the arc at half its depth (SFX_ARC) and are kept under the bed's own top end by a rider (ride_sfx).
 
-Sound design: every cue name of SPEC.md section 5 has a foley-style synth (pentatonic-snapped pitches, chord-aware: A C D E G,
-or A B D E G# over the E7 of bar 13, consecutive cues of one name never share a pitch unless the sheet repeats it).  `whoosh`: t is the
-START of the sweep; rev=1 is a build that rises slowly and ends abruptly at t + dur (so a rev whoosh into a hit starts `dur` earlier).
-Bed stems (pad, strings, plucks, drums, bass) have their own convolution reverbs (returns high-passed at 150-170 Hz); the pad and
-strings are widened (decorrelated above 150 Hz, mono below) and filtered by a time-varying low-pass automation; they are ducked by the
-kick; big cues (hit, boom, stamp...) duck the whole bed a little, and an 80 ms gap (-12 dB, whole mix, back at unity on the hit) precedes the title bloom at 3.125 s.
-Noise-based sounds (risers, crashes, reversed crash, snares, the riser cue) are tilted about -3 dB/oct above 5 kHz and low-passed at 9.5 kHz so
-that noise stacks (riser + snare roll + reversed crash) do not hiss; the kick fundamental follows the chord root (no beating against the sub);
-the intro (bars 0-1) is kept 4 dB lower than the groove before the bloom so the typing (0.5-2.2 s) and the 80 ms gap read; step cues have a
-tonal 1.8-2.4 kHz component so they stand out from the 16th hats.
-Balance: the sfx bus sits SFX_GAIN (-2.5 dB) under the bed (type / tick / blip softer, pop / ping / swell stronger), the sub and kick
-carry less 60 Hz weight, the melodic and drum buses have a presence shelf.  Every waveform ends in a raised-cosine fade (no cut tails).
-Master: glue compressor -> true-peak look-ahead limiter (4x oversampled, ramped gain, ceiling -2 dBTP, starts at unity) levelled to
--14 LUFS by measurement (no peak-normalisation) -> curved fade from 58.2 s to true silence at 59.8 s.  music.wav is therefore already
-at -14 LUFS / TP -2 dBTP; music.mp3 is the two-pass ffmpeg loudnorm (-14 LUFS, TP -2) of it, then alimiter at -2.3 dB (LAME overshoots by about 1 dB: TP <= -1.2) and is the deliverable (it decodes 219
-samples = 5 ms later than the wav and its container start_time is 0.025 s: the LAME delay; mux with -ss 0, the 5 ms is below a frame).
-Everything is deterministic (seeded RNG keyed by note / cue time, cues processed in time order); unknown cue names, bad times and bad
-options are skipped with a warning.
+The motif ("next word"): A4 C5 E5 D5 then E5 held (question: hangs on the 5th) / C5 held (answer: lands on the tonic).  It is asked in the hook, over
+the tokens / vectors / attention / predict / read / learn / teach / chat sections (on different instruments and over different chords), and answered
+only in the finale (bars 62 and 64, again as a fragment on the last chord).
+Chords by bar: see CHORDS (Am F C G Dm E, plus Asus and Gsus for the suspended passages).  Over a G chord the question is G B D E D (a C would be
+an avoid-note against the B).
 
-Dev hook: MUSIC_LLM_DEBUG=<dir> additionally dumps bed.wav, sfx.wav (both at -6 dB, exactly as they enter the master) and
-kicks.json there.
+Sound design: every cue name of SPEC.md section 6 has a foley-style synth (pentatonic-snapped pitches, chord-aware: A C D E G, A B D E G# over E, A B D E G
+over G; consecutive cues of one name never share a pitch unless the sheet repeats it).  `whoosh`: t is the START of the sweep; rev=1 is a build that rises
+slowly and ends abruptly at t + dur (so a rev whoosh into a hit starts `dur` earlier).  Dense runs of small cues (type / chip / tick / blip) obey a
+constant-power rule: above DENSE_RATE cues per second the run gets no louder.
+Bed stems (pad, strings, plucks, drums, bass) have their own convolution reverbs (returns high-passed at 170 Hz); the pad and strings are widened
+(decorrelated above 150 Hz, mono below) and filtered by a time-varying low-pass automation (PAD_CUT / STR_CUT, one knot list per section); they are ducked
+by the kick; big cues (hit, boom, stamp...) duck the whole bed a little, small UI cues duck only the 1.5-9 kHz band of the bed, and the 80 ms gaps (-12 dB,
+whole mix, back at unity on the hit) precede the title bloom at 6.25 s and the title hit at 165.0 s.
+Noise-based sounds (risers, crashes, reversed crash, snares, the riser cue) are tilted about -3 dB/oct above 5 kHz and low-passed at 9.5 kHz so that noise stacks do
+not hiss; the kick fundamental follows the chord root (no beating against the sub); step cues have a tonal 1.8-2.4 kHz component so they stand out from
+the 16th hats.  Every waveform ends in a raised-cosine fade (no cut tails).
+Master: glue compressor -> true-peak look-ahead limiter (4x oversampled, ramped gain, ceiling -2 dBTP, starts at unity) levelled to -14 LUFS by measurement
+(no peak-normalisation) -> curved fade from 168.6 s to true silence at 169.8 s.  music.wav is therefore already at -14 LUFS / TP -2 dBTP; music.mp3 is that wav through
+an alimiter at -2.3 dB (LAME overshoots by about 1 dB: TP <= -1.2) and is the deliverable (it decodes 219 samples = 5 ms later than the wav and its
+container start_time is 0.025 s: the LAME delay; mux with -ss 0, the 5 ms is below a frame).  There is deliberately NO loudnorm in the mp3 path: ffmpeg's
+loudnorm reverts to its dynamic mode when the source true peak is above its TP target and then flattens the loudness arc.
+Everything is deterministic (seeded RNG keyed by note / cue time, cues processed in time order); unknown cue names, bad times and bad options are skipped
+with a warning.
+
+Dev hook: MUSIC_LLM_DEBUG=<dir> additionally dumps bed.wav, sfx.wav, drm.wav (all at -6 dB, as they enter the master) and kicks.json there.
 """
 import argparse
+import bisect
 import json
 import os
 import shutil
@@ -62,13 +83,13 @@ BEAT = 60 / BPM            # 0.625 s
 BAR = 4 * BEAT             # 2.5 s
 EIGHTH = BEAT / 2
 SIXTEENTH = BEAT / 4
-NBARS = 24
-TOTAL = NBARS * BAR        # 60.0 s
-FADE_END = 59.8            # true silence from here on
+NBARS = 68
+TOTAL = NBARS * BAR        # 170.0 s
+FADE_END = 169.8           # true silence from here on
 FADE_EXP = 1.6
-FADE_LEN = .6              # curved fade-out guard: starts at 59.2 s (the chord itself is full until 58.8 s and releases on its own, bars 23)
+FADE_LEN = 1.2             # curved fade-out guard: starts at 168.6 s (the last chord is full until 168.2 s and releases on its own)
 BED_GAIN = 1.4             # bed -> master
-SFX_GAIN = .75             # sfx bus -> master (about -2.5 dB under the old mix, so the score is never behind the effects)
+SFX_GAIN = .65             # sfx bus -> master (about -2.5 dB under the old mix, so the score is never behind the effects)
 TARGET_LUFS = -14.0        # the wav is levelled to this before the mp3 two-pass loudnorm (which then only trims)
 CEIL_DB = -2.0             # true-peak ceiling of the wav
 N = int((TOTAL + 4) * SR)
@@ -493,15 +514,36 @@ def snare_roll(t0, t1, g0=.03, g1=.14, step=SIXTEENTH):
         snare(t0 + k * step, g0 + (g1 - g0) * (k / max(1, n - 1)) ** 1.3, pan=.2 * np.sin(k), roll=True)
 
 
+
 # ================================================================== harmony
 # per bar: list of (beat, chord); merged when identical neighbours
-CHORDS = {0: 'Am', 1: [(0, 'Am'), (1, 'F')], 2: 'Am', 3: 'F', 4: 'C', 5: 'G', 6: 'Am', 7: 'F', 8: 'G', 9: 'C', 10: 'G',
-          11: 'Am', 12: 'Dm', 13: 'E', 14: 'Am', 15: 'F', 16: 'G', 17: 'C', 18: 'F', 19: 'G',
-          20: 'Am', 21: 'F', 22: [(0, 'Am'), (2, 'G')], 23: 'C'}
+CHORDS = {
+    # hook
+    0: 'Am', 1: 'Am', 2: [(0, 'Am'), (2, 'F')], 3: [(0, 'F'), (3, 'G')],
+    # tokens
+    4: 'Am', 5: 'F', 6: 'C', 7: 'G', 8: 'Am', 9: [(0, 'F'), (2, 'G')],
+    # vectors
+    10: 'F', 11: 'C', 12: [(0, 'Am'), (2, 'F')], 13: 'C', 14: [(0, 'G'), (2, 'Am')], 15: [(0, 'F'), (2, 'G')],
+    # attention
+    16: 'Am', 17: 'F', 18: 'C', 19: [(0, 'G'), (2, 'Am')], 20: 'F', 21: [(0, 'Dm'), (2, 'Am')], 22: 'F', 23: [(0, 'Dm'), (2, 'G')],
+    # predict
+    24: 'C', 25: 'G', 26: [(0, 'Am'), (2, 'F')], 27: 'Am', 28: [(0, 'Dm'), (2, 'C')], 29: [(0, 'F'), (2, 'G'), (3, 'C')], 30: 'C', 31: [(0, 'F'), (2, 'E')],
+    # read
+    32: 'Am', 33: 'Am', 34: [(0, 'F'), (2, 'E')], 35: 'Asus', 36: [(0, 'Dm'), (2, 'Asus')], 37: 'E',
+    # learn
+    38: 'Am', 39: 'F', 40: [(0, 'C'), (2, 'G')], 41: 'Am', 42: 'F', 43: [(0, 'F'), (2, 'C')], 44: [(0, 'G'), (2, 'Am')], 45: [(0, 'F'), (2, 'G')],
+    # teach
+    46: 'Am', 47: 'F', 48: [(0, 'Dm'), (3, 'C')], 49: 'C', 50: 'G', 51: [(0, 'Am'), (2, 'F')], 52: [(0, 'C'), (2, 'G')],
+    53: [(0, 'Am'), (2, 'Dm')], 54: [(0, 'G'), (2, 'C')], 55: 'C',
+    # chat
+    56: 'C', 57: 'Am', 58: 'F', 59: [(0, 'G'), (1, 'Dm')], 60: [(0, 'Asus'), (2, 'Dm')], 61: [(0, 'Dm'), (2, 'Gsus')],
+    # finale
+    62: 'C', 63: [(0, 'Am'), (2, 'F')], 64: 'C', 65: [(0, 'F'), (2, 'G')], 66: 'C', 67: 'C'}
 VOIC = {'Am': [57, 60, 64, 67], 'F': [53, 57, 60, 64], 'C': [55, 60, 64, 71], 'G': [55, 59, 62, 69],
-        'Dm': [53, 57, 60, 65], 'E': [52, 56, 59, 62]}
-ROOT = {'Am': 33, 'F': 29, 'C': 36, 'G': 31, 'Dm': 38, 'E': 40}
-PCS = {'Am': (9, 0, 4, 11), 'F': (5, 9, 0, 7), 'C': (0, 4, 7, 2), 'G': (7, 11, 2, 9), 'Dm': (2, 5, 9, 0), 'E': (4, 8, 11, 2)}
+        'Dm': [53, 57, 60, 65], 'E': [52, 56, 59, 62], 'Asus': [57, 62, 64, 69], 'Gsus': [55, 60, 62, 67]}
+ROOT = {'Am': 33, 'F': 29, 'C': 36, 'G': 31, 'Dm': 38, 'E': 40, 'Asus': 33, 'Gsus': 31}
+PCS = {'Am': (9, 0, 4, 11), 'F': (5, 9, 0, 7), 'C': (0, 4, 7, 2), 'G': (7, 11, 2, 9), 'Dm': (2, 5, 9, 0), 'E': (4, 8, 11, 2),
+       'Asus': (9, 2, 4, 7), 'Gsus': (7, 0, 2, 9)}
 
 
 def chord_at(t):
@@ -519,28 +561,55 @@ def chord_at(t):
 
 def segments(b0, b1):
     """chord segments (t0, t1, name) covering bars [b0, b1), merging identical neighbours."""
-    segs = []
+    segs_ = []
     for b in range(b0, b1):
         c = CHORDS[b]
         lst = [(0, c)] if isinstance(c, str) else c
         for i, (bt, name) in enumerate(lst):
             t0 = tb(b, bt)
             t1 = tb(b, lst[i + 1][0]) if i + 1 < len(lst) else tb(b + 1)
-            if segs and segs[-1][2] == name and abs(segs[-1][1] - t0) < 1e-6:
-                segs[-1] = (segs[-1][0], t1, name)
+            if segs_ and segs_[-1][2] == name and abs(segs_[-1][1] - t0) < 1e-6:
+                segs_[-1] = (segs_[-1][0], t1, name)
             else:
-                segs.append((t0, t1, name))
-    return segs
+                segs_.append((t0, t1, name))
+    return segs_
+
+
+def segs(ta, tz):
+    """chord segments clipped to the time window [ta, tz)."""
+    out = []
+    for t0, t1, name in segments(int(ta // BAR + 1e-9), min(NBARS, int(np.ceil(tz / BAR - 1e-9)))):
+        a, z = max(t0, ta), min(t1, tz)
+        if z - a > 1e-6:
+            out.append((a, z, name))
+    return out
 
 
 def pool(name, lo, hi):
     return [m for m in range(lo, hi + 1) if m % 12 in PCS[name]]
 
 
-def pads(b0, b1, gain=.03, att=.8, rel=.8, lift=0, hall=0.0, voic=None):
-    for t0, t1, name in segments(b0, b1):
+def grid(win, step):
+    """(time, global step index) of every grid point of `step` inside the window."""
+    i0 = int(np.ceil(win[0] / step - 1e-6))
+    i1 = int(np.ceil(win[1] / step - 1e-6))
+    for i in range(i0, i1):
+        yield i * step, i
+
+
+def ramp(t, a, b, ga, gb):
+    return ga + (gb - ga) * min(1.0, max(0.0, (t - a) / (b - a)))
+
+
+def W(b0, b1=None, beat0=0.0, beat1=0.0):
+    """time window from bar b0 (+beat0 beats) to bar b1 (+beat1 beats); b1 None -> one bar."""
+    return (tb(b0, beat0), tb(b0 + 1 if b1 is None else b1, beat1))
+
+
+def pads_w(win, gain=.03, att=.8, rel=.8, lift=0, hall=0.0, voic=None, gf=None):
+    for a, z, name in segs(*win):
         v = voic(name) if voic else VOIC[name]
-        pad(t0, [m + lift for m in v], t1 - t0, gain, att, rel, hall=hall)
+        pad(a, [m + lift for m in v], z - a, gain * (gf(a) if gf else 1), att, rel, hall=hall)
 
 
 def open_voic(name):
@@ -549,13 +618,17 @@ def open_voic(name):
     return [v[0] + 12, v[1] + 12, v[2], v[3]]
 
 
-def strs(b0, b1, gain=.025, att=.9, rel=.8, low=False, open_=False):
-    for t0, t1, name in segments(b0, b1):
-        v = VOIC[name]
-        notes = [v[1] - 12, v[2], v[3]] if low else [v[0], v[1], v[2] + 12, v[3] + 12]      # low: no root (the sub and the bass own it)
-        if open_:
-            notes = [v[1], v[2], v[3], v[1] + 12, v[2] + 12] if low else [v[0] + 12, v[1] + 12, v[2] + 12, v[3] + 12]   # open: nothing below 260 Hz (the bass saw / cello / pad stack at 110-330 Hz)
-        strpad(t0, notes, t1 - t0, gain, att, rel)
+def str_notes(name, low=False, open_=False):
+    v = VOIC[name]
+    notes = [v[1] - 12, v[2], v[3]] if low else [v[0], v[1], v[2] + 12, v[3] + 12]      # low: no root (the sub and the bass own it)
+    if open_:
+        notes = [v[1], v[2], v[3], v[1] + 12, v[2] + 12] if low else [v[0] + 12, v[1] + 12, v[2] + 12, v[3] + 12]   # open: nothing below 260 Hz
+    return notes
+
+
+def strs_w(win, gain=.025, att=.9, rel=.8, low=False, open_=False, gf=None):
+    for a, z, name in segs(*win):
+        strpad(a, str_notes(name, low, open_), z - a, gain * (gf(a) if gf else 1), att, rel)
 
 
 MOT_Q = [(0, 69, .5), (.5, 72, .5), (1, 76, 1), (2, 74, 1), (3, 76, 2.2)]    # question: hangs on the 5th
@@ -568,8 +641,8 @@ def motif(t0, notes, inst, tr=0, gain=.05, vel=.8, pan=0.0, **kw):
         inst(t0 + bt * BEAT, m + tr, ln * BEAT, gain=gain, pan=pan, vel=vel * (1.0 if bt else 1.05), **kw)
 
 
-def arp_bar(bar, step, patt, inst, lo, hi, gain, vel_pat=(1, .6, .8, .6), pan_w=.5, skip_chord=None, t_from=0.0, t_to=1e9, tr=0, seed=0):
-    """arpeggiate the chord of this bar (or half bars); patt indexes into the chord's pool, None = rest."""
+def arp_bar(bar, step, patt, inst, lo, hi, gain, vel_pat=(1, .6, .8, .6), pan_w=.5, t_from=0.0, t_to=1e9, tr=0, gf=None):
+    """arpeggiate the chord of this bar; patt indexes into the chord's pool, None = rest; [t_from, t_to) clips the bar."""
     nstep = int(round(BAR / step))
     for k in range(nstep):
         t = tb(bar) + k * step
@@ -580,295 +653,688 @@ def arp_bar(bar, step, patt, inst, lo, hi, gain, vel_pat=(1, .6, .8, .6), pan_w=
             continue
         pl = pool(chord_at(t), lo, hi)
         m = pl[p % len(pl)] + tr
-        inst(t, m, step * .9, gain=gain * vel_pat[k % len(vel_pat)], pan=np.sin(k * 1.7 + bar) * pan_w, vel=.9)
+        inst(t, m, step * .9, gain=gain * vel_pat[k % len(vel_pat)] * (gf(t) if gf else 1), pan=np.sin(k * 1.7 + bar) * pan_w, vel=.9)
 
 
-def arps(b0, b1, step, patts, inst, lo, hi, gain, **kw):
-    for i, b in enumerate(range(b0, b1)):
-        arp_bar(b, step, patts[i % len(patts)], inst, lo, hi, gain, **kw)
+def arpw(win, step, patts, inst, lo, hi, gain, **kw):
+    for b in range(int(win[0] // BAR + 1e-9), int(np.ceil(win[1] / BAR - 1e-9))):
+        arp_bar(b, step, patts[b % len(patts)], inst, lo, hi, gain, t_from=win[0], t_to=win[1], **kw)
 
 
 P8A = [0, 2, 4, 2, 3, 2, 1, 2]
 P8B = [0, 3, 2, 4, 1, 3, 2, None]
 P8C = [0, 2, 1, 3, None, 4, 3, 1]
+P8G = [None, 1, None, 3, None, 2, None, 4]                         # glass top line on the off-beats
 P16A = [0, 2, 4, 2, 3, 5, 4, 2, 1, 3, 5, 3, 2, 4, 3, 1]
 P16B = [0, 3, 1, 4, 2, 5, 3, 6, 4, 2, 5, 3, 1, 4, 2, 0]
+OST16 = [0, 2, 3, 2, 0, 2, 3, 2, 0, 2, 3, 2, 1, 2, 3, 2]           # motor-like ostinato (learn)
+SPARK16 = [None, 3, None, None, 5, None, 2, None, None, 4, None, 6, None, None, 3, None]
+
+
+# ---- rhythm helpers working on time windows
+def kicks_w(win, beats=(0, 2), g=.2, duck=.35, gf=None):
+    for t, i in grid(win, BEAT):
+        if i % 4 in beats:
+            kick(t, g * (gf(t) if gf else 1), duck)
+
+
+def shaker_w(win, g=.03, pan=.25, gf=None):
+    for t, i in grid(win, EIGHTH):
+        shaker(t, g * (1.15 if i % 2 else 1.3) * (gf(t) if gf else 1), pan=-pan + 2 * pan * (i % 2))
+
+
+def hat8_w(win, g=.03, kind=0, gf=None):
+    for t, i in grid(win, EIGHTH):
+        if i % 2:
+            hat(t, g * (gf(t) if gf else 1), kind)
+
+
+def hat16_w(win, ga=.03, gb=.015, gf=None):
+    for t, i in grid(win, SIXTEENTH):
+        hat(t, (ga if i % 4 == 2 else gb) * (gf(t) if gf else 1), 0, pan=.3 * np.sin(i))
+
+
+def clap_w(win, beats=(1, 3), g=.1, gf=None):
+    for t, i in grid(win, BEAT):
+        if i % 4 in beats:
+            clap(t, g * (gf(t) if gf else 1))
+
+
+def snare_w(win, beats=(1, 3), g=.1, gf=None):
+    for t, i in grid(win, BEAT):
+        if i % 4 in beats:
+            snare(t, g * (gf(t) if gf else 1))
+
+
+def rim_w(win, beats=(1, 3), g=.03, gf=None):
+    for t, i in grid(win, BEAT):
+        if i % 4 in beats:
+            rim(t, g * (gf(t) if gf else 1))
+
+
+def data_hats(win, seed, p=.72, g=.02, gf=None):
+    """sparse 16th data-tick hats (kind 2), a different random pattern per seed."""
+    for t, i in grid(win, SIXTEENTH):
+        rg = R(21, seed, i)
+        if rg.random() < p:
+            hat(t, (g if i % 4 == 0 else g * .55) * (.6 + .6 * rg.random()) * (gf(t) if gf else 1), 2, pan=rg.random() - .5)
+
+
+# ---- bass helpers
+def sub_w(win, gain=.15, rel=.2, up=0, shorten=.05, att=.01):
+    for a, z, name in segs(*win):
+        i_subnote(a, ROOT[name] + up, z - a - shorten, gain, att=att, rel=rel)
+
+
+def sub8_w(win, gain=.12, acc=.75):
+    for t, i in grid(win, EIGHTH):
+        i_subnote(t, ROOT[chord_at(t)], EIGHTH * .95, gain * (1 if i % 2 == 0 else acc), att=.006, rel=.05)
+
+
+def bass8_w(win, gain=.1, cut=650, patt=(0, 0, 12, 0, 0, 12, 7, 12), base=12, off=.78, gf=None):
+    for t, i in grid(win, EIGHTH):
+        r = ROOT[chord_at(t)]
+        i_bassnote(t, r + base + patt[i % 8], EIGHTH * .85, gain * (1 if i % 2 == 0 else off) * (gf(t) if gf else 1), cut=cut)
+
+
+def groove_bass(win, sg=.2, bg=.06):
+    """tokens-style bass: the sub on the bar line, the saw octave on the 'and' of 3 and 4."""
+    for t, i in grid(win, BEAT / 2):
+        k = i % 8
+        r = ROOT[chord_at(t)]
+        if k == 0:
+            i_subnote(t, r, 1.5 * BEAT, sg)
+        elif k == 5:
+            i_bassnote(t, r + 12, EIGHTH, bg)
+        elif k == 7:
+            i_bassnote(t, r + (7 if (i // 8) % 2 else 12), EIGHTH, bg * .85)
+
+
+def cello8_w(win, gain=.076, up=24, osc=(0, 0, 7, 0, 0, 7, 10, 7)):
+    for t, i in grid(win, EIGHTH):
+        r = ROOT[chord_at(t)] + up
+        put(v_cello(r + osc[i % 8], round(EIGHTH * .8, 3)), t, 'mus', gain * (1 if i % 2 == 0 else .72), pan=-.15 if i % 2 else .15, hall=.2)
+
+
+def bell_dots(win, step, seed, g=.022, lo=79, hi=100, p=1.0, dec=1.6):
+    """sparse pentatonic bell sparkle (A minor pentatonic over everything, A B D E G# over E)."""
+    for t, i in grid(win, step):
+        rg = R(61, seed, i)
+        if rg.random() > p:
+            continue
+        ms = [m for m in range(lo, hi + 1) if m % 12 in pent_of(chord_at(t))]
+        i_bell(t, ms[int(rg.integers(len(ms)))], gain=g * (.7 + .6 * rg.random()), pan=rg.random() - .5, dec=dec)
+
+
+def lift_into(t, dur=2.5, riser_g=.06, crash_g=.05, f0=220, roll=None):
+    """riser + reversed crash that both peak at t (+ optional snare roll (t0, g0, g1))."""
+    riser(t, dur, riser_g, f0=f0)
+    crash_rev(t, min(1.6, dur), crash_g)
+    if roll:
+        snare_roll(t - roll[0], t, roll[1], roll[2])
+
 
 # ================================================================== the score
-def score():
-    # ------------------------------------------------ bars 0-1 (0-5 s): sparse
-    for t in (tb(0, 2), tb(1, 0)):                                   # heartbeat pulse
-        i_subnote(t, 33, .35, .3, att=.008, rel=.2)
-        i_subnote(t + .26, 33, .3, .2, att=.008, rel=.2)
-    pad(0.0, [57, 64, 67, 72], 3.125, gain=.026, att=2.4, rel=.05, spread=.8, hall=.6)       # glass swell under the typing
-    strpad(0.6, [45, 57, 64], 2.52, gain=.014, att=2.0, rel=.05)
-    motif(tb(0, 2), MOT_Q[:4], i_bell, tr=0, gain=.035, vel=.6, dec=1.3)                      # the question, in glass, ON the beat grid (beat 2 = 1.25 s, with the heartbeat); its held 5th is the title bloom itself
-    motif(tb(0, 2), MOT_Q[:4], i_felt, tr=0, gain=.045, vel=.45)
-    riser(3.125, 2.5, .055, f0=180, pw=3.2)                                                   # steeper; the last 100 ms must sit under the bloom
-    DIPS.append((3.125, .08))                                                                 # 80 ms gap in the WHOLE mix (bed + sfx), released exactly at the hit
-    for k in range(3):                                                                        # soft data sparkle, after the typing, running up into the riser
-        i_kalimba(tb(0, 3.5 + k * .5), [88, 91, 93][k], gain=.014, pan=(k - 1) * .3, vel=.6, dec=.5)
-    # title bloom, F major 7 at 3.125 (bar 1 beat 2)
-    t = tb(1, 1)
-    kick(t, .42, duck=.2)                                                                      # the title chord must not start under a duck
-    i_subnote(t, 29, 1.6, .20, rel=.4)
-    pad(t, VOIC['F'], BAR - .625 + .1, gain=.055, att=.05, rel=1.2, hall=.0)
-    strpad(t, [41, 57, 64, 72, 76], 1.9, gain=.034, att=.25, rel=1.2)
+def s_hook():
+    """bars 0-3 (0-10 s): sparse pulse, glassy question motif under the typing, riser to the bloom at 6.25 s (F maj7)."""
+    for t, g in ((tb(0, 2), .26), (tb(1, 0), .28), (tb(1, 2), .3), (tb(2, 0), .3)):                    # heartbeat pulse
+        i_subnote(t, 33, .35, g, att=.008, rel=.2)
+        i_subnote(t + .26, 33, .3, g * .66, att=.008, rel=.2)
+    pad(0.0, [57, 64, 67, 72], 6.25, gain=.026, att=3.2, rel=.05, spread=.8, hall=.6)             # glass swell under the typing
+    strpad(0.6, [45, 57, 64], 5.6, gain=.014, att=3.2, rel=.05)
+    motif(tb(0, 1), MOT_Q, i_bell, tr=0, gain=.035, vel=.6, dec=1.3)                             # the question, in glass, on the beat grid: it hangs on the 5th
+    motif(tb(0, 1), MOT_Q, i_felt, tr=0, gain=.045, vel=.45)
+    for k, m in enumerate([88, 91, 93, 96]):                                                       # soft data sparkle after the typing, running up into the riser
+        i_kalimba(tb(1, 2) + k * EIGHTH, m, gain=.014 + .002 * k, pan=(k - 1.5) * .3, vel=.6, dec=.5)
+    bell_dots((tb(1, 3), tb(2, 2)), BEAT, 3, g=.012, lo=84, hi=96, dec=1.0)
+    riser(tb(2, 2), 2.5, .055, f0=180, pw=3.2)                                                    # steep: the last 100 ms must sit under the bloom
+    DIPS.append((tb(2, 2), .08))                                                                  # 80 ms gap in the WHOLE mix, released exactly at the hit
+    # title bloom, F major 7 at 6.25 s (bar 2 beat 2)
+    t = tb(2, 2)
+    kick(t, .42, duck=.2)                                                                         # the title chord must not start under a duck
+    i_subnote(t, 29, 2.4, .20, rel=.6)
+    pad(t, VOIC['F'], 3.2, gain=.055, att=.05, rel=1.2)
+    strpad(t, [41, 57, 64, 72, 76], 2.8, gain=.034, att=.25, rel=1.2)
     for k, m in enumerate([65, 69, 72, 76, 81, 84, 88]):
         i_bell(t + .04 + k * .085, m, gain=.045, pan=(k - 3) * .25, dec=2.2)
     crash(t, .04, 2.2)
+    # bar 3: the title holds; warm, near-still, felt piano and glass; a pickup into the groove
+    for k, m in enumerate([60, 65, 69, 72, 76]):
+        i_felt(tb(3, 0) + .05 + k * .31, m, gain=.036, pan=(k - 2) * .15, vel=.45)
+    i_bell(tb(3, 2), 84, gain=.02, pan=.3, dec=1.8)
+    i_bell(tb(3, 3), 91, gain=.016, pan=-.3, dec=1.8)
+    i_subnote(tb(3, 0), 29, 2.0, .12, att=.4, rel=.4)
+    shaker_w((tb(3, 2), tb(4)), .012)
+    crash_rev(tb(4), 1.0, .03)
 
-    # ------------------------------------------------ bars 2-5 (5-15 s): curious groove
-    for b in range(2, 6):
-        pads(b, b + 1, gain=.022 * (1.6 if b == 4 else 1), att=1.0, rel=1.0, hall=0.0)       # bar 4 (C, low arps) was the quietest bar: about +4 dB
-    for b in range(2, 6):
-        r = ROOT[chord_at(tb(b))]
-        i_subnote(tb(b), r, 1.5 * BEAT, .2)
-        i_bassnote(tb(b, 2.5), r + 12, EIGHTH, .06)
-        i_bassnote(tb(b, 3.5), r + 7 if b % 2 else r + 12, EIGHTH, .05)
-        kick(tb(b), .2, .35)
-        kick(tb(b, 2), .18, .3)
-        for k in range(8):
-            shaker(tb(b) + k * EIGHTH, .036 if k % 2 else .042, pan=-.25 + .5 * (k % 2))        # air: hats / shaker up about 4 dB (the groove had no top end)
-            if k % 2:
-                hat(tb(b) + k * EIGHTH, .036, 0)
-    for b in range(2, 6):
-        arp_bar(b, EIGHTH, [P8A, P8B][(b - 2) % 2], i_marimba, 60, 81, .036 * (1.8 if b == 4 else 1))
-    for b in range(2, 6):                                                                  # glass top line an octave over the marimba, in every groove bar
-        arp_bar(b, EIGHTH, [None, 1, None, 3, None, 2, None, 4], i_kalimba, 72, 93, .025 * (1.6 if b == 4 else 1.15))
-    motif(tb(3), MOT_Q, i_kalimba, gain=.052, vel=.85, pan=.15, dec=.9)
-    motif(tb(5), MOT_QG, i_marimba, tr=12, gain=.05, vel=.85, pan=-.2, dec=.4)
-    for b in (3, 5):
-        i_bell(tb(b, 3), 88, gain=.024, pan=.4, dec=1.6)
 
-    # ------------------------------------------------ bars 6-8 (15-22.5): building
-    for b in range(6, 9):
-        pads(b, b + 1, gain=.026 * (1.3 if b == 6 else 1), att=1.0, rel=1.0)
-    for i, b in enumerate(range(6, 9)):
-        strs(b, b + 1, gain=.034 + .01 * i, att=1.4, rel=1.0)
-        r = ROOT[chord_at(tb(b))]
-        for k in range(8):
-            i_bassnote(tb(b) + k * EIGHTH, r + 12 + (12 if k % 4 == 3 else 0), EIGHTH * .85, .075 + .012 * i)
-        i_subnote(tb(b), r, BAR - .1, .16, rel=.2)
-        for k in range(8):
-            hat(tb(b) + k * EIGHTH, .02 if k % 2 else .014, 0)
-        for k in (0, 2):
-            kick(tb(b, k), .36 + .015 * i, .4)
-        if i >= 1:
-            clap(tb(b, 1), .06 + .02 * i)
-            clap(tb(b, 3), .06 + .02 * i)
-    arps(6, 9, SIXTEENTH, [P16A, P16B], i_marimba, 60, 88, .042, vel_pat=(1, .55, .75, .55))
-    arps(6, 9, EIGHTH, [[None, 1, None, 2, None, 3, None, 4]], i_pluck, 67, 91, .036)
-    motif(tb(6), MOT_Q, i_strlead, tr=0, gain=.034, vel=.8)
-    motif(tb(7), MOT_Q, i_bell, tr=12, gain=.026, vel=.8, dec=1.4)
-    snare_roll(tb(8, 2), tb(9), .03, .19)
-    snare(tb(8, 3.5), .05)
-    for k in (1, 3):
-        kick(tb(8, k), .24, .35)
-    riser(tb(9), 2.5, .06, f0=220)
-    crash_rev(tb(9), 1.4, .048)
+def groove_bar(b, g=1.0, top=True, win=None):
+    """curious groove bar (tokens / early vectors): warm pad, soft kick on 1 and 3, marimba 8ths, hats / shaker with air."""
+    w = win or W(b)
+    groove_bass(w, .2 * g ** .5, .06 * g ** .5)
+    kicks_w(w, (0, 2), .2 * g ** .5, .35)
+    shaker_w(w, .04, .25)
+    hat8_w(w, .036)
+    arpw(w, EIGHTH, [P8A, P8B], i_marimba, 60, 81, .036 * g)
+    if top:
+        arpw(w, EIGHTH, [P8G], i_kalimba, 72, 93, .027 * g)
 
-    # ------------------------------------------------ bars 9-10 (22.5-27.5): the aha, C major
-    t = tb(9)
+
+def s_tokens():
+    """bars 4-9 (10-25 s): curious light groove, plucks / marimba 8ths, soft kick on 1 and 3, shaker / hats with air."""
+    pads_w(W(4, 10), gain=.022, att=1.0, rel=1.0, gf=lambda t: 1.6 if int(t // BAR) in (6, 7) else 1.0)   # the C and G bars have the low pad voicings: +4 dB
+    lv = {4: .8, 5: 1.0, 6: 1.5, 7: 1.4, 8: 1.1, 9: 1.2}
+    for b in range(4, 10):
+        groove_bar(b, lv[b], top=(b > 4))
+    i_bell(tb(5, 3), 88, gain=.024, pan=.4, dec=1.6)
+    motif(tb(5), MOT_Q, i_kalimba, gain=.052, vel=.85, pan=.15, dec=.9)                          # the question, first asked on kalimba (over F)
+    motif(tb(7), MOT_QG, i_marimba, tr=12, gain=.05, vel=.85, pan=-.2, dec=.4)                    # and over G, an octave up
+    i_bell(tb(7, 3), 91, gain=.022, pan=-.4, dec=1.6)
+    motif(tb(8), MOT_Q, i_bell, tr=12, gain=.022, vel=.7, dec=1.4)
+    hat16_w(W(9, 10, 2, 0), .02, .012)                                                            # 16ths pick up into the vectors
+    snare_w(W(9, 10, 3, 0), (3,), .05)
+
+
+def s_vectors():
+    """bars 10-15 (25-40 s): the groove develops (bell sparkle, wider pad, 8th bass); brighter from 31.25 s (16ths, strings,
+    clap); a lift 37-40 s (strings swell, snare roll, riser) that is released at 40 s."""
+    a, bz = tb(10), tb(12, 2)
+    pads_w((a, tb(16)), gain=.026, att=1.2, rel=1.0, gf=lambda t: 1.5 if int(t // BAR) in (11, 13) else 1.0)
+    # 25-31.25 developing
+    w1 = (a, bz)
+    bass8_w(w1, .06, 550, patt=(0, 0, 12, 0, 0, 7, 12, 7), base=12, off=.7)
+    sub_w(w1, .17, rel=.2)
+    kicks_w(w1, (0, 2), .24, .38)
+    kicks_w(w1, (1, 3), .07, .15)
+    shaker_w(w1, .04, .3)
+    hat8_w(w1, .036)
+    arpw(w1, EIGHTH, [P8B, P8C, P8A], i_marimba, 60, 84, .04)
+    arpw(w1, EIGHTH, [P8G], i_kalimba, 72, 96, .028)
+    bell_dots(w1, BEAT * 2, 11, g=.022, lo=84, hi=98)
+    motif(tb(11), MOT_Q, i_kalimba, gain=.05, vel=.85, pan=.15, dec=.9)
+    motif(tb(11), MOT_Q, i_bell, tr=12, gain=.018, vel=.7, dec=1.4)
+    strs_w((tb(11, 2), bz), gain=.02, att=1.4, rel=.8)
+    # 31.25-37.5 brighter
+    w2 = (bz, tb(15))
+    bass8_w(w2, .075, 650, patt=(0, 0, 12, 0, 0, 12, 7, 12), base=12)
+    sub_w(w2, .16, rel=.2)
+    kicks_w(w2, (0, 2), .3, .4)
+    kicks_w(w2, (1, 3), .09, .2)
+    hat16_w(w2, .03, .015)
+    shaker_w(w2, .03, .3)
+    clap_w(w2, (1, 3), .05)
+    arpw(w2, SIXTEENTH, [P16A, P16B], i_marimba, 60, 91, .04, vel_pat=(1, .55, .8, .55))
+    arpw(w2, EIGHTH, [P8G], i_pluck, 67, 93, .03)
+    arpw(w2, EIGHTH, [[None, 1, None, 3, None, 2, None, 4]], i_kalimba, 76, 100, .026)
+    bell_dots(w2, BEAT, 12, g=.024, lo=88, hi=100, p=.8)
+    strs_w(w2, gain=.034, att=1.3, rel=.9, gf=lambda t: ramp(t, bz, tb(15), 1.0, 1.4))
+    motif(tb(13), MOT_QG, i_bell, tr=12, gain=.02, vel=.8, dec=1.4)
+    motif(tb(14, 2), MOT_Q, i_strlead, tr=0, gain=.034, vel=.8)
+    # 37.5-40 lift
+    w3 = (tb(15), tb(16))
+    bass8_w(w3, .09, 650, gf=lambda t: ramp(t, w3[0], w3[1], 1.0, 1.3))
+    sub_w(w3, .18, rel=.2)
+    kicks_w(w3, (0, 1, 2, 3), .28, .4)
+    snare_roll(tb(15, 1), tb(16), .03, .19)
+    riser(tb(16), 2.5, .066, f0=200)
+    crash_rev(tb(16), 1.5, .05)
+    pad(tb(15), [60, 64, 67, 72], BAR - .05, gain=.03, att=1.6, rel=.2)                         # an added bright triad: the lift
+
+
+def s_attention():
+    """bars 16-23 (40-60 s): three steps.  A (40-48.75) restrained: felt-piano ostinato, heartbeat sub, no drums to speak of;
+    B (48.75-53.75) strings enter, soft kick, 8th bass, marimba; C (53.75-60) full build: 4-on-the-floor, 16ths, snare roll, riser."""
+    wa, wb, wc = (tb(16), tb(19, 2)), (tb(19, 2), tb(21, 2)), (tb(21, 2), tb(24))
+    gpad = lambda t: ramp(t, tb(16), tb(21, 2), 1.0, 1.7) * (1.5 if int(t // BAR) in (18,) else 1)
+    pads_w((tb(16), tb(19, 2)), gain=.02, att=1.3, rel=1.0, gf=gpad)
+    pads_w((tb(19, 2), tb(24)), gain=.02, att=1.3, rel=1.0, gf=gpad, voic=open_voic)                # from B on the pad leaves 110-330 Hz to the bass
+    # --- A
+    sub_w(wa, .12, rel=.3)
+    kicks_w(wa, (0,), .15, .3)
+    kicks_w(wa, (2,), .11, .25)
+    shaker_w(wa, .016, .2)
+    rg = R(31, 1)
+    for t, i in grid(wa, EIGHTH):
+        c = chord_at(t)
+        pl = pool(c, 60, 79)
+        patt = [0, 2, 1, 3, 2, 4, 3, 2] if (int(t // BAR) % 2 == 0) else [0, 3, 2, 4, 1, 3, 2, 5]
+        i_felt(t + rg.normal(0, .004), pl[patt[i % 8] % len(pl)], gain=.04, pan=np.sin(i + 2) * .3, vel=.4 + .22 * (i % 2 == 0) + .05 * rg.random())
+    for t, i in grid(wa, BAR):
+        r = ROOT[chord_at(t)]
+        i_felt(t, r + 12, gain=.05, vel=.62)
+        i_felt(t + 2 * BEAT, r + 19, gain=.038, vel=.5)
+    motif(tb(17) + .004, MOT_Q, i_felt, gain=.058, vel=.78)                                       # the question, on piano, over F
+    motif(tb(18, 0) + .004, MOT_Q, i_bell, tr=12, gain=.02, vel=.7, dec=1.4)
+    bell_dots(wa, BEAT * 4, 16, g=.02, lo=84, hi=96)
+    # --- B
+    strs_w((tb(19, 2), tb(24)), gain=.03, att=1.4, rel=.9, low=True, open_=True, gf=lambda t: ramp(t, tb(19, 2), tb(21, 2), .9, 1.5))
+    sub_w(wb, .15, rel=.2)
+    bass8_w(wb, .065, 600, patt=(0, 0, 12, 0, 0, 12, 7, 12), base=12)
+    kicks_w(wb, (0, 2), .22, .38)
+    shaker_w(wb, .026, .25)
+    hat8_w(wb, .026)
+    arpw(wb, EIGHTH, [P8A, P8B], i_marimba, 60, 84, .038)
+    arpw(wb, EIGHTH, [P8G], i_kalimba, 72, 96, .024)
+    rg = R(31, 2)
+    for t, i in grid(wb, EIGHTH):
+        c = chord_at(t)
+        pl = pool(c, 60, 79)
+        i_felt(t + rg.normal(0, .004), pl[[0, 2, 1, 3, 2, 4, 3, 2][i % 8] % len(pl)], gain=.03, pan=np.sin(i + 2) * .3, vel=.4 + .15 * (i % 2 == 0))
+    for k, t in enumerate([wb[0]] + [t_ for t_, _ in grid(wb, BAR)]):
+        pl = pool(chord_at(t), 64, 79)
+        i_strlead(t, pl[(k + 1) % len(pl)], (BAR * .9 if k else BAR * .5), gain=.034, vel=.8)   # a slow rising countermelody on the strings
+    # --- C
+    strs_w(wc, gain=.03, att=.6, rel=.8, open_=True, gf=lambda t: ramp(t, wc[0], wc[1], 1.0, 1.7))
+    sub_w(wc, .16, rel=.2)
+    bass8_w(wc, .09, 600, gf=lambda t: ramp(t, wc[0], wc[1], 1.0, 1.4))
+    kicks_w((tb(21, 2), tb(22)), (2, 3), .26, .45)
+    kicks_w((tb(22), tb(24)), (0, 1, 2, 3), .4, .55, gf=lambda t: ramp(t, tb(22), tb(24), 1.0, 1.35))
+    clap_w((tb(22), tb(24)), (1, 3), .07, gf=lambda t: ramp(t, tb(22), tb(24), 1.0, 1.8))
+    hat16_w((tb(22), tb(24)), .026, .012)
+    hat8_w((tb(21, 2), tb(22)), .026)
+    shaker_w(wc, .022, .3)
+    arpw(wc, EIGHTH, [P8B, P8C], i_marimba, 60, 88, .04)
+    arpw((tb(22), tb(24)), SIXTEENTH, [P16A, P16B], i_marimba, 60, 91, .04, vel_pat=(1, .55, .8, .55))
+    arpw(wc, EIGHTH, [P8G], i_pluck, 67, 93, .03)
+    arpw(wc, EIGHTH, [[None, 1, None, 2, None, 3, None, 4]], i_kalimba, 76, 100, .026)
+    motif(tb(22), MOT_Q, i_strlead, gain=.036, vel=.85)
+    motif(tb(22), MOT_Q, i_bell, tr=12, gain=.02, vel=.8, dec=1.4)
+    snare_roll(tb(22, 2), tb(23), .02, .1)
+    snare_roll(tb(23, 1), tb(24), .03, .2)
+    riser(tb(24), 3.1, .075, f0=200)
+    crash_rev(tb(24), 1.5, .056)
+    taiko(tb(23, 2), .1, .2)
+
+
+def s_predict():
+    """bars 24-31 (60-80 s): the aha.  Lift to C major at 60 (brighter, not louder); calm and sparkly to 68.125; suspense (sparse, dark,
+    low drone, heartbeat, a gathering tension) to 71.25, where the draw lands (soft C major) and a calm sparse hold follows; a light drum loop from 74.375 to 80."""
+    t = tb(24)
     kick(t, .38, .7)
     i_subnote(t, 36, 1.8, .26, rel=.4)
     crash(t, .05, 2.4)
-    pads(9, 11, gain=.037, att=.06, rel=1.1)
-    strs(9, 11, gain=.032, att=.15, rel=1.0)
-    arps(9, 11, EIGHTH, [[None, 1, None, 3, None, 2, None, 4]], i_pluck, 62, 91, .03)
     for k, m in enumerate([72, 76, 79, 83, 88]):
         i_bell(t + k * .06, m, gain=.024, pan=(k - 2) * .25, dec=2.0)
-    for b in (9, 10):
-        r = ROOT[chord_at(tb(b))]
-        i_subnote(tb(b), r, 1.5 * BEAT, .18)
-        i_bassnote(tb(b, 2.5), r + 12, EIGHTH, .06)
-        i_bassnote(tb(b, 3.5), r + 7, EIGHTH, .045)
-        kick(tb(b, 2), .22, .35)
-        if b == 10:
-            kick(tb(b), .22, .35)
-        for k in range(8):
-            shaker(tb(b) + k * EIGHTH, .016 if k % 2 else .022, pan=-.25 + .5 * (k % 2))
-            if k % 2:
-                hat(tb(b) + k * EIGHTH, .016, 0)
-        rim(tb(b, 1), .04)
-        rim(tb(b, 3), .04)
-        clap(tb(b, 3), .05)
-        if b == 10:
-            clap(tb(b, 1), .05)
-    arps(9, 11, EIGHTH, [[0, 2, 4, 2, 3, 1, 4, 2], [0, 3, 2, 4, 1, 3, 5, 2]], i_marimba, 67, 91, .044)
-    i_felt(tb(9, 0), 60, gain=.05, vel=.6)
+    i_felt(t, 60, gain=.05, vel=.6)
     for m in (64, 67, 71):
-        i_felt(tb(9, 0), m, gain=.03, vel=.55)
-    motif(tb(10), MOT_QG, i_bell, tr=12, gain=.017, vel=.7, dec=1.3)
-    motif(tb(10), MOT_QG, i_kalimba, tr=0, gain=.034, vel=.8, pan=.2, dec=.9)
+        i_felt(t, m, gain=.03, vel=.55)
+    # calm and sparkly 60-68.125
+    wc = (tb(24), tb(27, 1))
+    pads_w(wc, gain=.032, att=.06, rel=1.0, gf=lambda t: 1.0 if t < tb(25) else .8)
+    strs_w(wc, gain=.026, att=.5, rel=.9, gf=lambda t: ramp(t, tb(24), tb(24, 2), 1.3, 1.0))
+    sub_w(wc, .14, rel=.2, shorten=.1)
+    for t, i in grid(wc, BEAT):
+        if i % 4 == 2:
+            i_bassnote(t + EIGHTH, ROOT[chord_at(t)] + 12, EIGHTH, .06)
+    kicks_w((tb(24, 2), wc[1]), (0, 2), .17, .3)
+    shaker_w((tb(24, 2), wc[1]), .022, .3)
+    hat8_w((tb(25), wc[1]), .014)
+    arpw(wc, EIGHTH, [[0, 2, 4, 2, 3, 1, 4, 2], [0, 3, 2, 4, 1, 3, 5, 2]], i_marimba, 67, 91, .04)
+    arpw(wc, SIXTEENTH, [SPARK16], i_kalimba, 76, 100, .026, pan_w=.8)
+    bell_dots(wc, BEAT * 2, 24, g=.022, lo=84, hi=100, dec=1.8)
+    motif(tb(25), MOT_QG, i_bell, tr=12, gain=.017, vel=.7, dec=1.3)
+    motif(tb(25), MOT_QG, i_kalimba, tr=0, gain=.034, vel=.8, pan=.2, dec=.9)
+    motif(tb(26, 2), MOT_Q, i_felt, tr=0, gain=.04, vel=.55)
+    # suspense 68.125-71.25: dark, sparse, a low drone, a clock-like heartbeat, a tension that gathers for the landing
+    ws = (tb(27, 1), tb(28, 2))
+    pads_w(ws, gain=.017, att=1.4, rel=1.0, voic=open_voic)
+    strpad(ws[0], [45, 52, 57], 2.4, gain=.022, att=1.4, rel=.8)
+    strpad(tb(28), [38, 45, 53, 57], 1.25, gain=.024, att=1.2, rel=.8)
+    for t, i in grid(ws, BEAT * 2):
+        i_subnote(t, ROOT[chord_at(t)], .4, .16, att=.008, rel=.2)
+        i_subnote(t + .26, ROOT[chord_at(t)], .3, .1, att=.008, rel=.2)
+    bell_dots((tb(27, 2), ws[1]), BEAT, 27, g=.012, lo=79, hi=96, p=.55, dec=1.4)
+    for k, m in enumerate([76, 74, 72, 71]):                                                       # a falling question in glass over the drone
+        i_kalimba(tb(27, 2) + k * BEAT, m, gain=.018, pan=(k - 1.5) * .3, vel=.6, dec=.8)
+    snare_roll(tb(28, 0), ws[1], .012, .06, step=EIGHTH)
+    riser(ws[1], 2.0, .04, f0=200, pw=2.6)
+    # landing 71.25 (the draw): C major, soft; then a calm, sparse hold (the drawn word, the other possible draws) until the loop at 74.375
+    t = tb(28, 2)
+    kick(t, .26, .5)
+    i_subnote(t, 36, 1.6, .16, att=.02, rel=.4)
+    crash(t, .03, 2.0)
+    for k, m in enumerate([79, 84, 88, 91]):
+        i_bell(t + k * .07, m, gain=.024, pan=(k - 1.5) * .3, dec=2.0)
+    wh = (tb(28, 2), tb(29, 3))
+    pads_w(wh, gain=.026, att=.25, rel=1.0, gf=lambda t: ramp(t, wh[0], wh[1], 1.0, 1.15))
+    strs_w(wh, gain=.02, att=.9, rel=.8)
+    sub_w(wh, .12, rel=.2, shorten=.1)
+    for t_, i in grid(wh, BEAT):
+        pl = pool(chord_at(t_), 60, 79)
+        i_felt(t_, pl[[0, 2, 1, 3][i % 4] % len(pl)], gain=.034, vel=.4 + .06 * (i % 2 == 0), pan=np.sin(i) * .3)
+    bell_dots(wh, BEAT, 28, g=.018, lo=84, hi=100, p=.6, dec=1.8)
+    shaker_w((tb(29, 2), wh[1]), .012, .2)
+    crash_rev(tb(29, 3), .9, .03)
+    # 74.375: light drum loop
+    t = tb(29, 3)
+    kick(t, .3, .6)
+    crash(t, .035, 2.0)
+    for k, m in enumerate([79, 84, 88, 91]):
+        i_bell(t + k * .07, m, gain=.022, pan=(k - 1.5) * .3, dec=2.0)
+    wl = (tb(29, 3), tb(32))
+    pads_w(wl, gain=.03, att=.15, rel=1.0, gf=lambda t: ramp(t, wl[0], wl[1], 1.0, 1.0))
+    strs_w(wl, gain=.022, att=.6, rel=.8)
+    sub_w(wl, .14, rel=.2, shorten=.1)
+    for t, i in grid(wl, BEAT):
+        if i % 4 == 2:
+            i_bassnote(t + EIGHTH, ROOT[chord_at(t)] + 12, EIGHTH, .06)
+        if i % 4 == 3:
+            i_bassnote(t + EIGHTH, ROOT[chord_at(t)] + 7, EIGHTH, .045)
+    kicks_w((tb(30), wl[1]), (0, 2), .22, .35)
+    clap_w(wl, (1, 3), .045)
+    rim_w(wl, (1, 3), .035)
+    shaker_w(wl, .022, .3)
+    hat8_w(wl, .02)
+    arpw(wl, EIGHTH, [[0, 2, 4, 2, 3, 1, 4, 2], [0, 3, 2, 4, 1, 3, 5, 2]], i_marimba, 62, 91, .042)
+    arpw(wl, EIGHTH, [P8G], i_pluck, 62, 91, .03)
+    bell_dots(wl, BEAT * 2, 30, g=.02, lo=84, hi=100)
+    motif(tb(30), MOT_Q, i_kalimba, gain=.045, vel=.8, pan=.2, dec=.9)
+    snare_roll(tb(31, 3), tb(32), .03, .12)
+    riser(tb(32), 1.25, .05, f0=250)
 
-    # ------------------------------------------------ bars 11-13 (27.5-35): dark and urgent
-    pads(11, 14, gain=.024, att=.9, rel=.9, voic=open_voic)
-    strs(11, 14, gain=.032, att=.6, rel=.8, low=True, open_=True)
-    for b in range(11, 14):
-        r = ROOT[chord_at(tb(b))]
-        i_subnote(tb(b), r, BAR - .05, .125, rel=.1)
-        for k in range(8):
-            t = tb(b) + k * EIGHTH
-            i_bassnote(t, r + (24 if k % 4 == 3 else 12), EIGHTH * .8, .12 if k % 2 == 0 else .085, cut=450)   # an octave over the sub: no doubling
-        rr = r + 24                                                  # cello an octave above the bass saw (they stacked on 110 Hz)
-        osc = (0, 0, 7, 0, 0, 7, 10, 7)
-        for k in range(8):
-            t = tb(b) + k * EIGHTH
-            put(v_cello(rr + osc[k], round(EIGHTH * .8, 3)), t, 'mus', .076 if k % 2 == 0 else .055, pan=-.15 if k % 2 else .15, hall=.2)
-        for k in range(16):
-            rg = R(21, b, k)
-            if rg.random() < .72:
-                tt = tb(b) + k * SIXTEENTH
-                hat(tt, (.02 if k % 4 == 0 else .011) * (.6 + .6 * rg.random()), 2, pan=rg.random() - .5)
-        kick(tb(b), .42, .5)
-        kick(tb(b, 2), .38, .45)
-        if b == 13:
-            kick(tb(b, 1), .2, .3)
-            kick(tb(b, 3), .24, .35)
-        rim(tb(b, 1), .03)
-        rim(tb(b, 3), .03)
-    for k, m in enumerate([81, 79, 76, 74]):                         # cold glass dots keep the sparse top
-        i_kalimba(tb(11, 2 + k * .5), m, gain=.015, pan=(k - 1.5) * .3, vel=.6, dec=.7)
-    i_felt(tb(12), 69, gain=.05, vel=.6)
-    i_felt(tb(12, 1.5), 65, gain=.04, vel=.55)
-    riser(tb(14), 1.25, .064, f0=250)
 
-    # ------------------------------------------------ bars 14-16 (35-42.5): peak
-    t = tb(14)
-    kick(t, .58, .75)
-    i_subnote(t, 33, 1.8, .24, rel=.3)
+def s_read():
+    """bars 32-37 (80-95 s): darker, urgent, driving: sub pulsing in 8ths, low string ostinato, data-tick hats (80-87.5); from 87.5 a suspended
+    questioning colour (Asus / Dm / Asus, ostinato dissolves into held notes and the question on felt piano); 92.5-95 E7 tension to the next section."""
+    w1, w2, w3 = (tb(32), tb(35)), (tb(35), tb(37)), (tb(37), tb(38))
+    pads_w((tb(32), tb(38)), gain=.024, att=.9, rel=.9, voic=open_voic)
+    strs_w((tb(32), tb(38)), gain=.032, att=.6, rel=.8, low=True, open_=True, gf=lambda t: 1.0 if t < tb(35) else .6)
+    # --- dark and driving
+    sub8_w(w1, .125, .68)
+    bass8_w(w1, .12, 450, patt=(0, 0, 12, 0, 0, 12, 12, 12), base=24, off=.7)                       # an octave over the sub: no doubling
+    cello8_w(w1, .076, up=24)
+    data_hats(w1, 32)
+    kicks_w(w1, (0, 2), .4, .5)
+    kicks_w((tb(34, 1), w1[1]), (1, 3), .22, .35)
+    rim_w(w1, (1, 3), .03)
+    for k, m in enumerate([81, 79, 76, 74]):                                                       # cold glass dots keep the sparse top
+        i_kalimba(tb(33, 2 + k * .5), m, gain=.015, pan=(k - 1.5) * .3, vel=.6, dec=.7)
+    i_felt(tb(33), 69, gain=.05, vel=.6)
+    i_felt(tb(33, 1.5), 65, gain=.04, vel=.55)
+    # --- suspended colour
+    sub8_w(w2, .1, .35)
+    for t, i in grid(w2, BAR):
+        pl = pool(chord_at(t), 57, 69)
+        i_strlead(t, pl[1 % len(pl)] + 12, BAR - .2, gain=.034, vel=.7)
+        i_strlead(t + 2 * BEAT, pl[2 % len(pl)] + 12, BAR - 1.4, gain=.028, vel=.6)
+    cello8_w((tb(35), tb(35, 2)), .05, up=24, osc=(0, 0, 0, 0, 0, 7, 0, 0))
+    kicks_w(w2, (0,), .26, .4)
+    data_hats(w2, 35, p=.35, g=.016)
+    motif(tb(35, 0) + .004, MOT_Q, i_felt, gain=.056, vel=.7)                                       # the question again, unanswered
+    motif(tb(35, 0), MOT_Q, i_bell, tr=12, gain=.014, vel=.6, dec=1.4)
+    motif(tb(36, 2), [(0, 74, .5), (.5, 77, .5), (1, 81, 1), (2, 79, 2.5)], i_felt, gain=.05, vel=.65)
+    for k, m in enumerate([88, 86, 84, 81]):
+        i_kalimba(tb(36, 1 + k * .5), m, gain=.014, pan=(k - 1.5) * .3, vel=.55, dec=.7)
+    # --- tension
+    sub8_w(w3, .15, .8)
+    bass8_w(w3, .12, 450, patt=(0, 0, 12, 0, 0, 12, 12, 12), base=24, off=.7)
+    cello8_w(w3, .07, up=24)
+    kicks_w(w3, (0, 1, 2, 3), .34, .5)
+    data_hats(w3, 37, p=.8, g=.022)
+    snare_roll(tb(37, 2), tb(38), .02, .16)
+    riser(tb(38), 2.5, .07, f0=250)
+    crash_rev(tb(38), 1.4, .05)
+
+
+def s_learn():
+    """bars 38-45 (95-115 s): restrained ostinato (95-101.25: motor marimba 16ths, low strings, soft pulse) -> steady build (101.25-108.75)
+    -> PEAK (108.75-115: four-on-the-floor, snare / clap, bass line, 16th arps, taiko, riser through the last bar)."""
+    wr, wb, wp = (tb(38), tb(40, 2)), (tb(40, 2), tb(43, 2)), (tb(43, 2), tb(46))
+    pads_w((tb(38), tb(43, 2)), gain=.026, att=.8, rel=.8, voic=open_voic, gf=lambda t: ramp(t, tb(38), tb(43, 2), .9, 1.7))
+    # --- restrained
+    sub8_w(wr, .1, .5)
+    arpw(wr, SIXTEENTH, [OST16], i_marimba, 60, 79, .03, vel_pat=(1, .5, .75, .5), pan_w=.3)
+    cello8_w(wr, .03, up=24, osc=(0, 0, 7, 0, 0, 7, 10, 7))
+    kicks_w(wr, (0, 1, 2, 3), .16, .3)
+    hat8_w(wr, .022)
+    strs_w(wr, gain=.022, att=1.2, rel=.8, low=True, open_=True)
+    motif(tb(39) + .004, MOT_Q, i_bell, tr=12, gain=.02, vel=.7, dec=1.4)
+    # --- steady build
+    sub8_w(wb, .12, .7)
+    bass8_w(wb, .1, 500, gf=lambda t: ramp(t, wb[0], wb[1], .8, 1.4))
+    cello8_w(wb, .035, up=24)
+    arpw(wb, SIXTEENTH, [OST16], i_marimba, 60, 84, .034, vel_pat=(1, .5, .75, .5), pan_w=.3)
+    arpw(wb, EIGHTH, [P8G], i_pluck, 67, 93, .028)
+    kicks_w(wb, (0, 1, 2, 3), .3, .45, gf=lambda t: ramp(t, wb[0], wb[1], 1.0, 1.35))
+    hat16_w((tb(41, 2), wb[1]), .024, .012)
+    hat8_w((wb[0], tb(41, 2)), .026)
+    clap_w((tb(42), wb[1]), (1, 3), .08, gf=lambda t: ramp(t, tb(42), wb[1], 1.0, 1.7))
+    strs_w(wb, gain=.032, att=1.0, rel=.8, open_=True, gf=lambda t: ramp(t, wb[0], wb[1], .8, 1.5))
+    snare_roll(tb(43), tb(43, 2), .03, .12)
+    snare(tb(43, 1.5), .05)
+    riser(tb(43, 2), 1.5, .05, f0=300)
+    crash_rev(tb(43, 2), 1.0, .05)
+    motif(tb(41), MOT_Q, i_marimba, tr=0, gain=.04, vel=.8, dec=.5)
+    # --- PEAK
+    t = wp[0]
+    kick(t, .6, .75)
+    i_subnote(t, 36, 1.5, .24, rel=.3)
     crash(t, .08, 2.4)
     taiko(t, .24, -.2)
-    pads(14, 17, gain=.06, att=.15, rel=.8, voic=open_voic)
-    strs(14, 17, gain=.05, att=.2, rel=.8, open_=True)
-    for b in range(14, 17):
-        r = ROOT[chord_at(tb(b))]
-        for k in range(4):
-            kick(tb(b, k), .56 if k else .66, .55)
-        clap(tb(b, 1), .16)
-        clap(tb(b, 3), .16)
-        snare(tb(b, 1), .1)
-        snare(tb(b, 3), .1)
-        for k in range(16):
-            hat(tb(b) + k * SIXTEENTH, (.038 if k % 4 == 2 else .019), 0, pan=.3 * np.sin(k))
-        hat(tb(b, 3.5), .03, 1)
-        for k in range(8):
-            shaker(tb(b) + k * EIGHTH, .016, pan=-.3)
-        i_subnote(tb(b), r, BAR - .05, .145, rel=.1)
-        bl = (0, 0, 12, 0, 0, 12, 7, 12)
-        for k in range(8):
-            i_bassnote(tb(b) + k * EIGHTH, r + 12 + bl[k], EIGHTH * .85, .17 if k % 2 == 0 else .133, cut=450)
-        for k in range(8):
-            t = tb(b) + k * EIGHTH
-            put(v_cello(r + 24 + (0, 0, 7, 0, 0, 7, 12, 7)[k], round(EIGHTH * .8, 3)), t, 'mus', .028, pan=.2 if k % 2 else -.2, hall=.3)
-    arps(14, 17, SIXTEENTH, [P16A, P16B], i_marimba, 60, 91, .058, vel_pat=(1, .55, .8, .55))
-    arps(14, 17, SIXTEENTH, [P16B, P16A], i_pluck, 67, 95, .045, vel_pat=(1, .5, .75, .5), tr=0)
-    motif(tb(15), MOT_Q, i_bell, tr=12, gain=.026, vel=.8, dec=1.4)
-    taiko(tb(15, 3), .12, .3)
-    snare_roll(tb(16, 2), tb(17), .03, .18)
-    riser(tb(17), BAR, .08, f0=200)
-    crash_rev(tb(17), 1.6, .064)
+    pads_w(wp, gain=.058, att=.15, rel=.8, voic=open_voic)
+    strs_w(wp, gain=.05, att=.2, rel=.8, open_=True)
+    kicks_w((wp[0] + BEAT, wp[1]), (0, 1, 2, 3), .58, .55)
+    clap_w(wp, (1, 3), .16)
+    snare_w(wp, (1, 3), .1)
+    hat16_w(wp, .038, .019)
+    hat_off = [tb(b, 3.5) for b in (43, 44, 45)]
+    for t_ in hat_off:
+        hat(t_, .03, 1)
+    shaker_w(wp, .016, .3)
+    sub_w(wp, .15, rel=.1, shorten=.05)
+    bass8_w(wp, .17, 450, patt=(0, 0, 12, 0, 0, 12, 7, 12), base=12, off=.78)
+    cello8_w(wp, .028, up=24, osc=(0, 0, 7, 0, 0, 7, 12, 7))
+    arpw(wp, SIXTEENTH, [P16A, P16B], i_marimba, 60, 91, .058, vel_pat=(1, .55, .8, .55))
+    arpw(wp, SIXTEENTH, [P16B, P16A], i_pluck, 67, 95, .045, vel_pat=(1, .5, .75, .5))
+    motif(tb(44), MOT_QG, i_bell, tr=12, gain=.026, vel=.8, dec=1.4)
+    motif(tb(44), MOT_QG, i_strlead, gain=.034, vel=.8)
+    taiko(tb(44), .12, .3)
+    taiko(tb(45, 3), .12, .3)
+    snare_roll(tb(45, 2), tb(46), .03, .18)
+    riser(tb(46), BAR, .085, f0=200)
+    crash_rev(tb(46), 1.6, .064)
 
-    # ------------------------------------------------ bars 17-19 (42.5-50): release, felt piano
-    pads(17, 20, gain=.024, att=1.2, rel=1.0)
-    for i, b in enumerate(range(17, 20)):
-        rg = R(31, b)
-        c = chord_at(tb(b))
-        r = ROOT[c]
-        v = VOIC[c]
-        i_subnote(tb(b), r, BAR * .9, .13 + .01 * i)
-        # left hand: root + fifth ; right hand: broken chord in 8ths with human jitter
-        i_felt(tb(b) + rg.normal(0, .004), r + 12, gain=.052, vel=.62)
-        i_felt(tb(b, 2) + rg.normal(0, .004), r + 19, gain=.04, vel=.5)
-        pl = pool(c, 60, 81)
-        patt = [0, 2, 1, 3, 2, 4, 3, 2] if b % 2 == 0 else [0, 3, 2, 4, 1, 3, 2, 5]
-        for k in range(8):
-            if b == 18 and k in (0, 1, 2, 3, 4, 5, 6, 7) and False:
-                continue
-            tt = tb(b) + k * EIGHTH + rg.normal(0, .005)
-            i_felt(tt, pl[patt[k] % len(pl)], gain=.036, pan=np.sin(k + b) * .3, vel=.42 + .22 * (k % 2 == 0) + .05 * rg.random())
-    motif(tb(17, 0) + .004, MOT_Q, i_felt, tr=0, gain=.058, vel=.78)                  # Q again, on piano, over C
-    motif(tb(18, 0) + .004, MOT_Q, i_felt, tr=0, gain=.058, vel=.78)                  # and over F
-    motif(tb(19, 0) + .004, MOT_QG, i_kalimba, tr=12, gain=.045, vel=.8, dec=.9)
-    strs(18, 20, gain=.016, att=1.3, rel=1.0)
-    arps(18, 20, EIGHTH, [[None, 1, None, 3, None, 2, None, 4]], i_kalimba, 72, 93, .022)
-    for b in range(17, 20):
-        kick(tb(b), .2 + .02 * (b - 17), .35)
-        if b >= 18:
-            kick(tb(b, 2), .17, .3)
-            for k in range(8):
-                shaker(tb(b) + k * EIGHTH, .014, pan=-.2 + .4 * (k % 2))
-        if b >= 19:
-            for k in range(8):
-                hat(tb(b) + k * EIGHTH, .014 if k % 2 else .01, 0)
-            clap(tb(b, 1), .045)
-            clap(tb(b, 3), .06)
-        rim(tb(b, 3), .02)
-    riser(tb(20), 1.5, .04, f0=260)
 
-    # ------------------------------------------------ bars 20-23 (50-60 s): finale
-    # bar 20: pad swell + the motif, resolved
-    pad(tb(20), VOIC['Am'], BAR + .2, gain=.034, att=2.0, rel=.9)
-    strpad(tb(20), [45, 57, 64, 72, 76], BAR + .2, gain=.026, att=2.0, rel=.9)
-    i_subnote(tb(20), 33, BAR, .17, att=.5)
-    motif(tb(20, 0), MOT_R, i_strlead, tr=0, gain=.045, vel=.9)
-    motif(tb(20, 0), MOT_R, i_bell, tr=12, gain=.022, vel=.8, dec=1.6)
-    motif(tb(20, 0), MOT_R, i_felt, tr=0, gain=.055, vel=.7)
-    snare_roll(tb(20, 2), tb(21), .02, .12, step=EIGHTH / 2 if False else SIXTEENTH)
-    riser(tb(21), 1.25, .064, f0=300)
-    crash_rev(tb(21), 1.4, .048)
-    # bars 21-22: full beat
-    t = tb(21)
-    kick(t, .5, .75)
-    taiko(t, .2, .2)
-    crash(t, .07, 2.6)
-    i_subnote(t, 29, 1.8, .25, rel=.3)
-    pads(21, 23, gain=.033, att=.1, rel=.8)
-    strs(21, 23, gain=.029, att=.15, rel=.9)
-    for b in (21, 22):
-        for k in range(4):
-            kick(tb(b, k), .30 if k else .38, .55)
-        clap(tb(b, 1), .09)
-        clap(tb(b, 3), .09)
-        for k in range(16):
-            hat(tb(b) + k * SIXTEENTH, (.03 if k % 4 == 2 else .015), 0, pan=.3 * np.sin(k))
-        hat(tb(b, 3.5), .028, 1)
-        for k in range(8):
-            shaker(tb(b) + k * EIGHTH, .014, pan=-.3)
-    for t0, t1, name in segments(21, 23):
-        r = ROOT[name]
-        i_subnote(t0, r, t1 - t0 - .05, .15, rel=.1)
-        bl = (0, 0, 12, 0, 0, 12, 7, 12)
-        for k in range(int(round((t1 - t0) / EIGHTH))):
-            i_bassnote(t0 + k * EIGHTH, r + 12 + bl[k % 8], EIGHTH * .85, .09 if k % 2 == 0 else .07)
-    arps(21, 23, SIXTEENTH, [P16A, P16B], i_marimba, 60, 91, .03, vel_pat=(1, .55, .8, .55))
-    arps(21, 23, EIGHTH, [[None, 1, None, 2, None, 3, None, 4]], i_pluck, 67, 95, .024)
-    motif(tb(21, 0), MOT_R, i_strlead, tr=0, gain=.05, vel=.95)
-    motif(tb(21, 0), MOT_R, i_bell, tr=12, gain=.028, vel=.9, dec=1.6)
-    motif(tb(22, 1), MOT_R, i_strlead, tr=0, gain=.055, vel=1.0)
-    motif(tb(22, 1), MOT_R, i_bell, tr=12, gain=.03, vel=.95, dec=2.0)
-    motif(tb(22, 1), MOT_R, i_felt, tr=-12, gain=.06, vel=.75)
-    taiko(tb(22, 0), .14, -.2)
-    taiko(tb(22, 2), .11, .2)
-    snare_roll(tb(22, 2), tb(23), .03, .13)
-    crash_rev(tb(23), 1.0, .048)
-    # bar 23: the long tonic chord, rings and fades
-    t = tb(23)
-    kick(t, .42, .7)
-    i_subnote(t, 36, 1.3, .3, rel=1.0)
-    crash(t, .045, 2.2)
-    pad(t, [48, 55, 60, 64, 71, 74], 1.3, gain=.04, att=.1, rel=1.0, spread=.9)         # full until 58.8 s, then its own 1 s release (dies at 59.8 s); the felt piano and bells ring on top
-    strpad(t, [48, 60, 67, 76, 79, 83], 1.3, gain=.03, att=.2, rel=1.0)
+def s_teach():
+    """bars 46-55 (115-140 s): release and warmth, felt piano + pad + a gentle beat.  Questioning, sparse (115-121.9); warmer (121.9-128.75:
+    broken chords, kalimba glass, soft kick); strings build (128.75-136.25); warm resolved C major chord (136.25-140)."""
+    t = tb(46)
+    i_subnote(t, 33, 2.0, .16, att=.05, rel=.5)                                                   # the peak is let go: one low breath and the felt piano
+    for k, m in enumerate([45, 57, 64, 67, 72]):
+        i_felt(t + .02 + k * .045, m, gain=.07 - k * .006, pan=(k - 2) * .15, vel=.62)
+    crash(t, .03, 2.6)
+    # --- questioning, sparse 115-121.875
+    wq = (tb(46), tb(48, 3))
+    gpad = lambda t: ramp(t, tb(46), tb(54, 2), .9, 1.35)
+    pads_w((tb(46), tb(51, 2)), gain=.02, att=1.6, rel=1.2, gf=gpad)
+    pads_w((tb(51, 2), tb(54, 2)), gain=.02, att=1.6, rel=1.2, gf=gpad, voic=open_voic)
+    sub_w(wq, .11, rel=.3, shorten=.2)
+    motif(tb(46, 2) + .004, MOT_Q, i_felt, gain=.056, vel=.72)                                    # the question on a warm piano, hanging on the 5th
+    motif(tb(46, 2), MOT_Q, i_bell, tr=12, gain=.014, vel=.6, dec=1.6)
+    for t_, i in grid((tb(47), tb(48, 3)), BEAT):
+        pl = pool(chord_at(t_), 60, 76)
+        i_felt(t_, pl[[0, 1, 2, 3][i % 4]], gain=.038, vel=.42 + .06 * (i % 2 == 0), pan=np.sin(i) * .3)
+    i_felt(tb(47), chord_root_midi(47) + 12, gain=.05, vel=.6)
+    kicks_w((tb(47), wq[1]), (0,), .12, .25)
+    shaker_w((tb(47, 2), wq[1]), .012, .2)
+    i_bell(tb(48, 3), 88, gain=.026, pan=.2, dec=2.0)                                              # the C of 121.875: the colour warms
+    # --- warmer 121.875-128.75
+    ww = (tb(48, 3), tb(51, 2))
+    rg = R(32, 1)
+    for t_, i in grid(ww, EIGHTH):
+        pl = pool(chord_at(t_), 57, 81)
+        patt = [0, 2, 1, 3, 2, 4, 3, 2] if int(t_ // BAR) % 2 == 0 else [0, 3, 2, 4, 1, 3, 2, 5]
+        i_felt(t_ + rg.normal(0, .005), pl[patt[i % 8] % len(pl)], gain=.038, pan=np.sin(i + 5) * .3, vel=.42 + .22 * (i % 2 == 0) + .05 * rg.random())
+    for t_, i in grid(ww, BAR):
+        r = ROOT[chord_at(t_)]
+        i_felt(t_, r + 12, gain=.052, vel=.62)
+        i_felt(t_ + 2 * BEAT, r + 19, gain=.04, vel=.5)
+    sub_w(ww, .13, rel=.3, shorten=.1)
+    kicks_w(ww, (0, 2), .2, .35)
+    shaker_w(ww, .016, .25)
+    rim_w(ww, (3,), .02)
+    hat8_w((tb(50), ww[1]), .01)
+    arpw(ww, EIGHTH, [P8G], i_kalimba, 72, 96, .022)
+    motif(tb(49) + .004, MOT_Q, i_felt, gain=.056, vel=.75)
+    motif(tb(50) + .004, MOT_QG, i_kalimba, tr=12, gain=.04, vel=.8, dec=.9)
+    bell_dots(ww, BEAT * 3, 49, g=.016, lo=84, hi=98, dec=1.8)
+    # --- strings build 128.75-136.25
+    wsb = (tb(51, 2), tb(54, 2))
+    strs_w(wsb, gain=.028, att=1.4, rel=1.0, gf=lambda t: ramp(t, wsb[0], wsb[1], .7, 1.6))
+    sub_w(wsb, .14, rel=.3, shorten=.1)
+    bass8_w(wsb, .06, 600, gf=lambda t: ramp(t, wsb[0], wsb[1], 1.0, 1.5), patt=(0, 0, 12, 0, 0, 12, 7, 12))
+    kicks_w(wsb, (0, 2), .2, .35, gf=lambda t: ramp(t, wsb[0], wsb[1], 1.0, 1.4))
+    kicks_w((tb(53), wsb[1]), (1, 3), .1, .25)
+    shaker_w(wsb, .018, .3)
+    hat8_w(wsb, .02)
+    clap_w((tb(53), wsb[1]), (1, 3), .045, gf=lambda t: ramp(t, tb(53), wsb[1], 1.0, 1.8))
+    arpw(wsb, EIGHTH, [P8A, P8B], i_kalimba, 67, 93, .03)
+    arpw((tb(52), wsb[1]), EIGHTH, [P8G], i_pluck, 67, 93, .024)
+    rg = R(32, 2)
+    for t_, i in grid(wsb, EIGHTH):
+        pl = pool(chord_at(t_), 57, 79)
+        i_felt(t_ + rg.normal(0, .005), pl[[0, 2, 1, 3, 2, 4, 3, 2][i % 8] % len(pl)], gain=.03, pan=np.sin(i + 5) * .3, vel=.4 + .18 * (i % 2 == 0))
+    for k, (t_, i) in enumerate(grid(wsb, BAR)):
+        pl = pool(chord_at(t_), 64, 81)
+        i_strlead(t_, pl[(k + 2) % len(pl)], BAR * .9, gain=.034, vel=.85)
+    snare_roll(tb(54, 0), wsb[1], .02, .09)
+    crash_rev(wsb[1], 1.2, .04)
+    # --- warm resolved chord 136.25-140
+    t = wsb[1]
+    kick(t, .26, .5)
+    i_subnote(t, 36, 3.2, .24, att=.02, rel=.5)
+    pad(t, [48, 55, 60, 64, 71, 74], 3.6, gain=.04, att=.2, rel=1.0, spread=.9)
+    strpad(t, [48, 60, 67, 76, 79, 83], 3.4, gain=.03, att=.3, rel=1.0)
     for k, m in enumerate([48, 55, 64, 71, 74, 79]):
-        i_felt(t + k * .03, m, gain=.07, pan=(k - 2.5) * .15, vel=.7)
+        i_felt(t + k * .04, m, gain=.068, pan=(k - 2.5) * .15, vel=.66)
+    for k, m in enumerate([88, 83, 79, 76, 91]):
+        i_bell(t + .2 + k * .3, m, gain=.024 - k * .0016, pan=(k % 4 - 1.5) * .3, dec=2.4)
+    for t_, i in grid((t + 1.25, tb(56)), EIGHTH):
+        pl = pool('C', 60, 84)
+        i_felt(t_ + rg.normal(0, .005), pl[[0, 2, 3, 4, 3, 2][i % 6] % len(pl)], gain=.032, pan=np.sin(i) * .3, vel=.4 + .12 * (i % 2 == 0))
+    kicks_w((tb(55), tb(56)), (0, 2), .15, .3)
+    shaker_w((tb(55), tb(56)), .014, .25)
+
+
+def chord_root_midi(bar):
+    return ROOT[chord_at(tb(bar))]
+
+
+def s_chat():
+    """bars 56-61 (140-155 s): a clean light pulse (soft four-on-the-floor, pluck / kalimba 8ths, closed hats) in C / Am / F / G; from 148.125 s
+    slightly uneasy (Dm / Asus / Gsus: no kick, a low D drone, held cello, the question again, a soft riser); resolves at 155 s."""
+    wc, wu = (tb(56), tb(59, 1)), (tb(59, 1), tb(62))
+    pads_w((tb(56), tb(59, 1)), gain=.026, att=.8, rel=.9)
+    sub_w(wc, .13, rel=.2, shorten=.1)
+    kicks_w(wc, (0, 1, 2, 3), .1, .25)
+    hat8_w(wc, .03)
+    shaker_w(wc, .018, .3)
+    clap_w(wc, (3,), .02)
+    arpw(wc, EIGHTH, [[0, 2, 1, 3, 2, 4, 1, 3], [0, 3, 1, 4, 2, 3, 1, 2]], i_pluck, 62, 88, .034)
+    arpw(wc, EIGHTH, [P8G], i_kalimba, 72, 100, .026)
+    for t_, i in grid(wc, EIGHTH):
+        if i % 4 == 3:
+            i_bassnote(t_, ROOT[chord_at(t_)] + 12 + (7 if (i // 8) % 2 else 0), EIGHTH * .9, .06)
+    bell_dots(wc, BEAT * 2, 56, g=.016, lo=84, hi=100)
+    motif(tb(57), MOT_Q, i_kalimba, gain=.05, vel=.85, pan=.15, dec=.9)
+    motif(tb(58), MOT_Q, i_bell, tr=12, gain=.02, vel=.8, dec=1.4)
+    # uneasy
+    pads_w(wu, gain=.024, att=1.2, rel=1.0, gf=lambda t: ramp(t, wu[0], wu[1], .9, 1.2))
+    strs_w(wu, gain=.024, att=1.2, rel=.9, low=True, gf=lambda t: ramp(t, wu[0], wu[1], .8, 1.4))
+    sub_w(wu, .12, rel=.3, shorten=.15)
+    for t_ in [wu[0]] + [x for x, _ in grid(wu, BAR)]:
+        r = ROOT[chord_at(t_)]
+        i_strlead(t_ + .02, r + 24, BAR - .15, gain=.03, vel=.65)                                    # a long cello-ish note: the pulse thins into held tones
+    kicks_w((tb(59, 1), tb(60)), (1, 3), .06, .2)
+    hat8_w(wu, .016)
+    data_hats(wu, 59, p=.3, g=.014)
+    arpw((tb(59, 1), tb(61)), EIGHTH, [[0, None, 2, None, 1, None, 3, None]], i_pluck, 62, 88, .026)
+    motif(tb(60), MOT_Q, i_kalimba, tr=-5, gain=.044, vel=.75, pan=-.1, dec=.9)                       # the question once more, lower (over Asus / Dm9)
+    motif(tb(60), MOT_Q, i_felt, tr=-5, gain=.04, vel=.5)
+    for k, m in enumerate([86, 83, 79, 74]):
+        i_kalimba(tb(61, 2) + k * EIGHTH, m, gain=.014, pan=(k - 1.5) * .3, vel=.55, dec=.8)
+    riser(tb(62), 2.5, .045, f0=240, pw=2.6)
+    crash_rev(tb(62), 1.2, .03)
+
+
+def s_finale():
+    """bars 62-67 (155-170 s): resolved at 155 (pad swell, the motif answered over strings: it lands on the tonic), a growing beat to 163.5,
+    a sparse collapse to the title hit at 165.0 s (80 ms gap, then C major with kick, taiko, crash), the final tonic rings and fades to silence."""
+    t0 = tb(62)
+    crash(t0, .05, 2.6)
+    i_subnote(t0, 36, 2.4, .2, att=.3, rel=.4)
+    pad(t0, [48, 55, 60, 64, 71], BAR * 1.0, gain=.034, att=2.0, rel=.9, spread=.9)
+    strpad(t0, [48, 60, 67, 76, 79], BAR * 1.0, gain=.028, att=2.0, rel=.9)
+    wa = (tb(63), tb(65, 2))
+    pads_w(wa, gain=.036, att=.5, rel=.9, gf=lambda t: ramp(t, wa[0], wa[1], 1.0, 1.4), voic=open_voic)
+    strs_w(wa, gain=.03, att=.7, rel=.9, open_=True, gf=lambda t: ramp(t, wa[0], wa[1], 1.0, 1.5))
+    motif(tb(62), MOT_R, i_strlead, gain=.045, vel=.9)                                              # THE ANSWER: A C E D, then C held on the tonic
+    motif(tb(62), MOT_R, i_bell, tr=12, gain=.022, vel=.8, dec=1.6)
+    motif(tb(62), MOT_R, i_felt, gain=.055, vel=.7)
+    motif(tb(64), MOT_R, i_strlead, gain=.05, vel=.95)
+    motif(tb(64), MOT_R, i_bell, tr=12, gain=.026, vel=.9, dec=2.0)
+    motif(tb(64), MOT_R, i_felt, tr=-12, gain=.06, vel=.75)
+    bell_dots((tb(62, 2), tb(64)), BEAT, 62, g=.016, lo=84, hi=100, p=.6, dec=1.8)
+    wsub = (tb(62), tb(65, 2))
+    sub_w(wsub, .15, rel=.2, shorten=.1)
+    # the beat grows: heartbeat -> pulse -> full
+    kicks_w((tb(62, 2), tb(63)), (0, 2), .16, .3)
+    kicks_w((tb(63), tb(64)), (0, 1, 2, 3), .24, .4)
+    kicks_w((tb(64), tb(65, 2)), (0, 1, 2, 3), .34, .5)
+    clap_w((tb(63, 2), tb(65, 2)), (1, 3), .08, gf=lambda t: ramp(t, tb(63, 2), tb(65, 2), .8, 1.4))
+    shaker_w((tb(62, 2), tb(65, 2)), .016, .3)
+    hat8_w((tb(63), tb(64)), .02)
+    hat16_w((tb(64), tb(65, 2)), .03, .015)
+    bass8_w((tb(63), tb(65, 2)), .08, 550, gf=lambda t: ramp(t, tb(63), tb(65, 2), 1.0, 1.5))
+    arpw((tb(62, 2), tb(64)), EIGHTH, [P8A, P8B], i_marimba, 60, 88, .036)
+    arpw((tb(64), tb(65, 2)), SIXTEENTH, [P16A, P16B], i_marimba, 60, 91, .042, vel_pat=(1, .55, .8, .55))
+    arpw((tb(63), tb(65, 2)), EIGHTH, [P8G], i_pluck, 67, 95, .028)
+    taiko(tb(64), .12, -.2)
+    snare_roll(tb(65), tb(65, 2), .02, .12)
+    # 163.5-165: the picture collapses to a blinking caret: one pad, two glass blinks
+    for t_, g in ((tb(65, 2.5), .026), (tb(65, 3.5), .02)):
+        i_bell(t_, 79, gain=g, pan=.1, dec=1.4)
+        i_kalimba(t_, 91, gain=g * .6, pan=-.1, vel=.7, dec=.6)
+    pad(tb(65, 2), VOIC['Gsus'], tb(66) - tb(65, 2) + .1, gain=.026, att=.3, rel=.3)
+    i_subnote(tb(65, 2), 31, 1.4, .1, att=.2, rel=.3)
+    riser(tb(66), 1.4, .045, f0=200, pw=2.8)
+    DIPS.append((tb(66), .08))
+    # the title hit and the last chord
+    t = tb(66)
+    kick(t, .5, .6)
+    taiko(t, .22, .2)
+    crash(t, .07, 2.8)
+    i_subnote(t, 36, 3.0, .27, att=.02, rel=1.0)
+    pad(t, [48, 55, 60, 64, 71, 74], 3.0, gain=.044, att=.12, rel=1.2, spread=.9)
+    strpad(t, [48, 60, 67, 76, 79, 83], 2.9, gain=.032, att=.25, rel=1.2)
+    for k, m in enumerate([48, 55, 64, 71, 74, 79]):
+        i_felt(t + k * .03, m, gain=.07, pan=(k - 2.5) * .15, vel=.72)
     for k, m in enumerate([88, 83, 79, 76, 91, 86, 83, 95]):
-        i_bell(t + .35 + k * .22, m, gain=.026 - k * .0012, pan=(k % 4 - 1.5) * .3, dec=2.6)
+        i_bell(t + .35 + k * .24, m, gain=.026 - k * .0013, pan=(k % 4 - 1.5) * .3, dec=2.6)
+    motif(t + .6, MOT_R[:3], i_felt, tr=12, gain=.03, vel=.5)
+
+
+def score():
+    s_hook()
+    s_tokens()
+    s_vectors()
+    s_attention()
+    s_predict()
+    s_read()
+    s_learn()
+    s_teach()
+    s_chat()
+    s_finale()
 
 
 # ================================================================== sound effects from the cue sheet
 PENT_PC = (9, 0, 2, 4, 7)                  # A minor pentatonic
-PENT_E = (9, 11, 2, 4, 8)                  # over the E7 of bar 13: G natural would clash with the G#, so A B D E G#
+PENT_E = (9, 11, 2, 4, 8)                  # over an E7: G natural would clash with the G#, so A B D E G#
+PENT_G = (9, 11, 2, 4, 7)                  # over a G major chord: C would be an avoid-note against its B, so A B D E G
+
+
+def pent_of(chord):
+    return PENT_E if chord == 'E' else PENT_G if chord == 'G' else PENT_PC
 LAST_SNAP = {}
 
 
@@ -876,7 +1342,7 @@ def snap(m, t=None, key=None):
     """snap a cue pitch to the pentatonic of the chord sounding at t (A C D E G, or A B D E G# over E7); consecutive
     cues of the same name never end up on the same pitch unless the sheet asked for the same pitch twice."""
     raw = int(round(m))
-    pcs = PENT_E if (t is not None and chord_at(t) == 'E') else PENT_PC
+    pcs = pent_of(chord_at(t)) if t is not None else PENT_PC
     out = raw
     for d in (0, -1, 1, -2, 2):
         if (raw + d) % 12 in pcs:
@@ -924,20 +1390,23 @@ def w_type(v):
 # per-cue trims (linear) relative to the original balance; the sfx bus itself is SFX_GAIN under the bed
 T_TYPE = 1.4
 T_TICK = 10 ** (-3 / 20)
-T_BLIP = 1.0
+T_BLIP = .8
 T_POP = 10 ** (8.5 / 20)
-T_PING = 10 ** (3 / 20)
+T_PING = 10 ** (1.5 / 20)
 T_SWELL = 10 ** (5 / 20)          # the swell sits on top of the pad: it needs a real tonal body
 T_LOUD = 1 / SFX_GAIN        # hit / boom / stamp / glitch keep their old absolute level
 
 
 SMALL = ('type', 'chip', 'tick', 'blip', 'step', 'count')
+DENSE_NAMES = ('type', 'chip', 'tick', 'blip')
+DENSE_RATE = 7.0
 # trim of the small UI cues (dB) per section of the bed: the dense sections (dark 27.5-35, peak 35-42.5, finale 50-57.5) bury a -3 dB tick
-SMALL_TRIM = [(0, 0.0), (22.5, 1.5), (27.5, 3.0), (35, 5.0), (42.5, 1.0), (50, 5.0), (57.5, 3.0)]
+SMALL_TRIM = [(0, 0.0), (25, 1.0), (31.25, 2.0), (40, 0.0), (48.75, 2.0), (53.75, 1.0), (60, 0.0), (74.375, 2.0), (80, 3.0), (87.5, 2.0), (92.5, 3.0), (95, 1.0),
+              (101.25, 3.0), (108.75, 4.0), (115, 0.0), (128.75, 1.5), (136.25, 0.0), (140, 1.0), (155, 2.0), (163.5, 0.0)]
 
 
 PRETTY = ('ping', 'ding', 'chime', 'sparkle', 'whoosh', 'swish', 'pop', 'down')
-FINALE_PRETTY = (50.0, 57.4, 10 ** (-3.5 / 20))     # the finale's glass pings / dings / whooshes land on a bed that is already at the peak level: -3.5 dB so the mix never beats bars 14-16
+PRETTY_TRIM = [(53.75, 60.0, 10 ** (-2.0 / 20)), (108.75, 115.0, 10 ** (-3.5 / 20)), (155.0, 163.5, 10 ** (-3.5 / 20))]     # glass pings / dings / whooshes on a bed that is already near its loudest: a few dB softer so the mix never beats the learn peak
 
 
 def small_trim(t):
@@ -1221,6 +1690,7 @@ def place_cues(cues):
             return float(c.get('t'))
         except (AttributeError, TypeError, ValueError):
             return 0.0
+    dense = sorted(tkey(c) for c in cues if isinstance(c, dict) and c.get('name') in DENSE_NAMES)
     for c in sorted(cues, key=tkey):                                   # time order, so pitch de-duplication is well defined
         if not isinstance(c, dict):
             continue
@@ -1268,9 +1738,14 @@ def place_cues(cues):
             o[k] = v
         if name in SMALL:
             o['g'] = o.get('g', 1.0) * small_trim(t)
+            if name in DENSE_NAMES:                                    # constant-power rule: above DENSE_RATE small cues per second the run gets no louder
+                d = (bisect.bisect_right(dense, t + .25) - bisect.bisect_left(dense, t - .25)) / .5
+                o['g'] *= min(1.0, (DENSE_RATE / max(d, 1e-9)) ** .5)
             CUE_DUCKS.append((t, 1.0))
-        elif name in PRETTY and FINALE_PRETTY[0] <= t < FINALE_PRETTY[1]:
-            o['g'] = o.get('g', 1.0) * FINALE_PRETTY[2]
+        elif name in PRETTY:
+            for t0, t1, gg in PRETTY_TRIM:
+                if t0 <= t < t1:
+                    o['g'] = o.get('g', 1.0) * gg
         try:
             FX[name](t, **o)
             placed += 1
@@ -1318,9 +1793,28 @@ def sweep_lp(x, pts, k=9):
     return out
 
 
-PAD_CUT = [(0, 600), (2.5, 1100), (3.1, 1600), (3.2, 5500), (5, 4200), (14, 4200), (15, 1800), (22.4, 9000), (22.6, 7000), (27.4, 6000),
-           (27.5, 1300), (34, 2200), (35, 4500), (42.4, 7000), (42.5, 2400), (49.9, 3800), (50, 1500), (52.4, 5500), (52.5, 6500), (57.4, 6500), (57.5, 5000), (60, 3000), (64, 3000)]
-STR_CUT = [(0, 1500), (3.1, 2500), (3.2, 6500), (5, 3500), (15, 2200), (22.4, 9000), (27.4, 6500), (27.5, 1800), (35, 6000), (42.5, 3000), (50, 2000), (52.5, 7000), (57.5, 6000), (64, 3500)]
+def _steps(pairs, lead=.08):
+    """filter automation: (t, hz) pairs; a 's' flag steps (an 80 ms glide into the new value at t), otherwise a log-linear glide from the previous knot."""
+    out = []
+    for p in pairs:
+        t, hz = p[0], p[1]
+        if len(p) > 2 and out:
+            out.append((max(t - lead, out[-1][0] + 1e-3), out[-1][1]))
+        out.append((t, hz))
+    return out
+
+
+# (t, hz[, 's']): 's' = a step at t (the filter jumps within 80 ms), otherwise a glide from the previous knot
+PAD_CUT = _steps([(0, 600), (3, 1300), (6.2, 1700), (6.25, 5500, 's'), (9.9, 4200), (10, 3800, 's'), (24.9, 3600), (25, 3000, 's'), (31.25, 5000), (36, 7000), (39.9, 9000),
+                  (40, 2200, 's'), (48.7, 2400), (48.75, 3600, 's'), (53.7, 4000), (53.75, 5500, 's'), (59.9, 9000), (60, 8000, 's'), (68.05, 7000), (68.125, 1800, 's'), (71.2, 2400), (71.25, 4500, 's'), (74.3, 5000),
+                  (74.375, 6500, 's'), (79.9, 6000), (80, 1300, 's'), (87.4, 1500), (87.5, 2600, 's'), (92.4, 2800), (92.5, 3400, 's'), (94.9, 4500), (95, 1500, 's'), (101.2, 1800),
+                  (101.25, 2400, 's'), (108.7, 3500), (108.75, 6000, 's'), (114.9, 6500), (115, 2000, 's'), (121.8, 2600), (121.875, 3600, 's'), (128.7, 4000), (128.75, 4500, 's'),
+                  (136.2, 6500), (136.25, 6500, 's'), (139.9, 6000), (140, 5000, 's'), (148.1, 4500), (148.125, 2800, 's'), (154.9, 3500), (155, 6500, 's'), (163.4, 6500), (163.5, 3500, 's'),
+                  (164.9, 4500), (165, 7000, 's'), (170, 3500), (175, 3500)])
+STR_CUT = _steps([(0, 1500), (3, 2000), (6.2, 2500), (6.25, 6500, 's'), (10, 3500), (25, 2800), (31.25, 4500), (39.9, 8000), (40, 2400, 's'), (48.75, 3200, 's'), (53.75, 5000, 's'),
+                  (59.9, 8500), (60, 7000, 's'), (68.125, 1800, 's'), (71.25, 4000, 's'), (74.375, 6000, 's'), (80, 1800, 's'), (87.5, 2600, 's'), (92.5, 3500, 's'), (95, 1800, 's'), (101.25, 2800, 's'),
+                  (108.75, 6500, 's'), (115, 2200, 's'), (121.875, 3200, 's'), (128.75, 4000, 's'), (136.2, 7000), (136.25, 7000, 's'), (140, 5500, 's'), (148.125, 3000, 's'),
+                  (155, 6500, 's'), (163.5, 3500, 's'), (165, 7000, 's'), (175, 3500)])
 
 
 def duck_curve(events, tau, floor_len=.5):
@@ -1373,16 +1867,22 @@ def arc_gain():
 # calibrated against the real cue sheet (K-weighted momentary loudness, bed median per bar): bars 0-1 -11 dB re the peak, groove -6, build -9 / -7 / -4.7,
 # aha -5.2, dark -7.7 / -7.7 / -7.2, PEAK 0, release -7.5 / -7.5 / -6.5, finale -2.5 / -1.4 / -1.4; bar 1 has its own step down at the title bloom (3.125 s)
 ARC = [
-       (0, -3.18), (2.499, -3.18), (2.5, -0.18), (3.035, 2.82), (3.045, 2.82), (3.125, -6.87),
-       (4.999, -6.87), (5.001, -0.2), (7.499, -0.2), (7.501, -1.71), (9.999, -1.71), (10.001, -0.43),
-       (12.499, -0.43), (12.501, -1.16), (14.999, -1.16), (15.001, -3.3), (17.499, -3.3), (17.501, -3.14),
-       (19.999, -3.14), (20.001, -0.56), (22.499, -0.56), (22.501, -2.15), (24.999, -2.15), (25.001, -1.35),
-       (27.499, -1.35), (27.501, -2.85), (29.999, -2.85), (30.001, -2.67), (32.499, -2.67), (32.501, -2.29),
-       (34.999, -2.29), (35.001, -0.2), (37.499, -0.2), (37.501, -0.34), (39.999, -0.34), (40.001, 0.54),
-       (42.499, 0.54), (42.501, -2.46), (44.999, -2.46), (45.001, -4.24), (47.499, -4.24), (47.501, -3.58),
-       (49.999, -3.58), (50.001, 0.99), (52.499, 0.99), (52.501, 0.7), (54.999, 0.7), (55.001, -0.5),
-       (57.499, -0.5), (57.501, -2.92), (59.999, -2.92),
-       ]
+    (0.000, -9.06), (3.100, -9.06), (6.199, -9.06), (6.251, -14.49), (6.875, -14.49), (7.499, -14.49), (7.501, -11.67), (8.750, -11.67),
+    (9.999, -11.67), (10.001, -3.54), (11.250, -3.54), (13.750, -7.94), (16.250, -5.56), (18.750, -9.13), (21.250, -5.55), (23.750, -3.88),
+    (24.999, -3.88), (25.001, -5.48), (26.250, -5.48), (29.375, -10.00), (33.125, -9.96), (36.250, -8.44), (38.750, -3.73), (39.999, -3.73),
+    (40.001, -4.46), (41.250, -4.46), (43.750, -9.12), (46.250, -9.19), (48.125, -7.40), (48.749, -7.40), (48.751, -4.81), (50.000, -4.81),
+    (52.500, -5.12), (53.749, -5.12), (53.751, -3.36), (54.375, -3.36), (56.250, -7.11), (58.750, -6.62), (59.999, -6.62), (60.001, -9.64),
+    (61.250, -9.64), (63.750, -7.70), (66.250, -7.68), (67.800, -7.79), (68.099, -7.79), (68.126, -5.39), (69.688, -5.39), (71.249, -5.39),
+    (71.251, -8.10), (72.812, -8.10), (74.374, -8.10), (74.376, -9.36), (75.938, -9.36), (78.750, -5.97), (79.999, -5.97), (80.001, -4.11),
+    (81.250, -4.11), (83.750, -4.71), (86.250, -4.73), (87.499, -4.73), (87.501, -6.47), (88.750, -6.47), (91.250, -3.11), (92.499, -3.11),
+    (92.501, -6.62), (93.750, -6.62), (94.999, -6.62), (95.001, -1.39), (96.500, -1.39), (99.625, -3.82), (101.249, -3.82), (101.251, -3.68),
+    (102.500, -3.68), (105.000, -3.87), (107.500, -3.55), (108.749, -3.55), (108.751, 0.77), (110.000, 0.77), (113.125, 0.31), (114.999, 0.31),
+    (115.001, -9.64), (116.750, -9.64), (120.188, -4.33), (121.874, -4.33), (121.876, -9.01), (123.588, -9.01), (127.025, -8.45), (128.749, -8.45),
+    (128.751, -5.74), (130.625, -5.74), (134.375, -6.25), (136.249, -6.25), (136.251, -8.24), (138.125, -8.24), (139.999, -8.24), (140.001, -5.96),
+    (142.000, -5.96), (146.062, -6.30), (148.124, -6.30), (148.126, -2.49), (149.812, -2.49), (153.250, -3.03), (154.999, -3.03), (155.001, -6.15),
+    (156.250, -6.15), (158.750, 0.45), (161.750, -3.66), (163.499, -3.66), (163.501, -9.36), (164.250, -9.36), (164.999, -9.36), (165.001, -7.34),
+    (166.500, -7.34), (168.750, -1.36), (169.499, -1.36), (169.900, -1.36), (175.000, -1.36),
+]
 
 
 def render_mix():
@@ -1406,7 +1906,25 @@ def render_mix():
         cd = duck_curve(CUE_DUCKS, .07, .35) * CUE_DUCK_DEPTH
         bed = bed - bp_st(bed, 1500, 9000, 1) * cd
     arc = arc_gain()
-    return bed * dg * arc, (BUS['sfx'] + wet_sfx) * dg * arc ** SFX_ARC
+    bed, sfx = bed * dg * arc, (BUS['sfx'] + wet_sfx) * dg * arc ** SFX_ARC
+    return bed, ride_sfx(bed, sfx)
+
+
+SFX_CAP_DB = 6.0           # a dense run of cues may be at most this much louder (0.4 s rms, above 800 Hz) than the bed's own top end
+SFX_CAP_FLOOR = 10 ** (-42 / 20)     # ... but a near-silent bed (the opening typing) never takes the cues away
+SFX_CAP_MAX_CUT = .35
+
+
+def ride_sfx(bed, sfx, win=.4):
+    """keeps dense sfx runs under the bed: the part of the sfx above 800 Hz is turned down (at most -9 dB) while its 0.4 s rms is more than
+    SFX_CAP_DB over the bed's (the lows, hence the weight of hits and booms, are untouched)."""
+    k = int(win * SR)
+    hs, hb = hp_st(sfx, 800), hp_st(bed, 800)
+    rs = np.sqrt(np.maximum(uniform_filter1d((hs.astype(np.float64) ** 2).mean(0) * SFX_GAIN ** 2, k), 0))
+    rb = np.sqrt(np.maximum(uniform_filter1d((hb.astype(np.float64) ** 2).mean(0) * BED_GAIN ** 2, k), 0))
+    g = np.clip(np.maximum(rb, SFX_CAP_FLOOR) * 10 ** (SFX_CAP_DB / 20) / (rs + 1e-9), SFX_CAP_MAX_CUT, 1.0)
+    g = uniform_filter1d(g, int(.05 * SR)).astype(F32)
+    return sfx - hs * (1 - g)
 
 
 def limiter(x, ceil_db=CEIL_DB, look=.004, rel=.09):
@@ -1518,14 +2036,16 @@ def write_wav(path, mix):
 
 
 def encode(wav, mp3):
+    """wav -> mp3 (256 kbps CBR).  The wav is already levelled (-14 LUFS, TP -2 dBTP) and is encoded as it is: NO loudnorm here, because ffmpeg's
+    loudnorm falls back to its *dynamic* mode when the true peak of the source is above its TP target, which flattens the whole loudness arc
+    (quiet sections +3..+6 dB).  A -2.3 dB sample-peak limiter keeps LAME's inter-sample overshoot (about 1 dB) under -1.2 dBTP."""
     if not shutil.which('ffmpeg'):
         raise FileNotFoundError('ffmpeg')
-    LN = 'loudnorm=I=-14:TP=-2:LRA=11'
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', wav, '-af', LN + ':print_format=json', '-f', 'null', '-'], capture_output=True, text=True).stderr
-    m = json.loads(r[r.rindex('{'):r.rindex('}') + 1])
-    LN += (f":measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
-           f":measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
-    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-af', LN + ',alimiter=limit=-2.3dB:level=false,atrim=0:60,apad=whole_dur=60',
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', wav, '-af', 'loudnorm=I=-14:TP=-2:LRA=11:print_format=json', '-f', 'null', '-'],
+                       capture_output=True, text=True).stderr
+    m = json.loads(r[r.rindex('{'):r.rindex('}') + 1])                     # a measurement only (for the log)
+    n = int(round(TOTAL))
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-af', f'alimiter=limit=-2.3dB:level=false,atrim=0:{n},apad=whole_dur={n}',
                     '-ar', str(SR), '-ac', '2', '-c:a', 'libmp3lame', '-b:a', '256k', mp3], check=True)
     return m
 

@@ -1,12 +1,12 @@
 // s0_hook (2:50 cut): black -> a gold caret -> "The cat sat on the" is typed -> next-word bars -> "mat" -> everything is drawn into the gold title.
 // local time 0..10 s (global = local). The letterbox is closed until 6.2 s, so everything before that lives in y 138..942.
-// pages: A 0-2.7 typing | B 2.7-4.3 bars + "mat" | hold 4.3-5.2 | C 5.2-6.25 dissolve into particles | hit 6.25 | D title, English 6.7, tagline 7.3, hold to 9.6
+// pages: A 0-2.7 typing | B 2.8-4.3 bars + "mat" | hold 4.2-5.2 | C 5.2-6.2 dissolve into particles | hit 6.25 | D title, English 6.7, tagline 7.3, hold to 9.6
 const R = mulberry(20260000);
-const HK = { cx: W / 2, size: 100, y0: 450, y1: 330, tHit: 6.25, T0: .5, DT: .12, rel: 5.25, relT: 5.15, titleCy: 428, titleSize: 200, titleLs: 34, titleStr: '大语言模型', tEn: 6.7, tTag: 7.3 };
+const HK = { cx: W / 2, size: 100, y0: 450, y1: 330, tHit: 6.25, T0: .5, DT: .12, rel: 5.2, titleCy: 428, titleSize: 200, titleLs: 34, titleStr: '大语言模型', tEn: 6.7, tTag: 7.3, tLift: 2.62 };
 const HK_FULL = 'The cat sat on the mat';                        // 22 characters; the last 4 (" mat") are typed in at 2.0 s
-const HK_TYPE_T = i => i < 18 ? HK.T0 + i * HK.DT : [3.94, 4.0, 4.09, 4.18][i - 18];   // 18 characters at 0.12 s, then ' mat' (the gold word lands at 4.0-4.3)
+const HK_TYPE_T = i => i < 18 ? HK.T0 + i * HK.DT : [3.80, 3.86, 3.98, 4.10][i - 18];   // 18 characters at 0.12 s, then ' mat' (the gold word lands at 3.8-4.2)
 const HK_BARS = STORY.next.slice(0, 5);                         // mat, floor, couch, bed, sofa (then a fan of tiny bars for the rest of the vocabulary)
-const HK_B = { x0: 640, k: 1750, y0: 470, dy: 64, h: 26, tUnfurl: 3.0, stag: .08, dur: .45, tGold: 3.55 };
+const HK_B = { x0: 640, k: 1750, y0: 470, dy: 64, h: 26, tUnfurl: 2.85, stag: .09, dur: .55, tGold: 3.5, tSpark: 3.58 };
 const hkAdv = () => measure('M', HK.size, F_MONO, 400);
 const hkLeftFinal = () => HK.cx - HK_FULL.length * hkAdv() / 2;
 const hkRowY = i => HK_B.y0 + i * HK_B.dy;
@@ -109,7 +109,7 @@ function hkParticles(lt) {
 function hkSentence(lt) {
   const adv = hkAdv(), n = HK_FULL.length, size = HK.size, left = hkLeftFinal();   // laid out at its final x from the first character: only the vertical lift moves the line
   const rd = i => i >= 18 ? .07 : .09, rv = i => clamp((lt - HK_TYPE_T(i)) / rd(i));
-  const m = sstep(1.40, 1.84, lt), y = lerp(HK.y0, HK.y1, m);                       // 120 px in 0.44 s: peak speed under 420 px/s
+  const m = sstep(HK.tLift, HK.tLift + .5, lt), y = lerp(HK.y0, HK.y1, m);          // 120 px in 0.5 s: peak speed about 360 px/s
   let caretX = 0; for (let i = 0; i < n; i++) caretX += adv * sstep(HK_TYPE_T(i) - .005, HK_TYPE_T(i) + .05, lt);   // the caret sits in the NEXT cell and hops there as each character starts, so it never overprints a glyph
   const relS = lt < HK.rel ? 0 : 1;
   for (let i = 0; i < n; i++) {
@@ -126,17 +126,18 @@ function hkSentence(lt) {
   const solid = lt - last < .22 && last > 0, blinkOn = !(Math.floor(lt * 2.2) % 2);
   const hide = sstep(HK_TYPE_T(18) - .03, HK_TYPE_T(18), lt) * (1 - sstep(HK_TYPE_T(n - 1) + .03, HK_TYPE_T(n - 1) + .07, lt));
   const ca = sstep(.04, .22, lt) * (1 - sstep(HK.rel - .03, HK.rel + .05, lt)) * (solid || blinkOn ? 1 : 0) * (1 - hide);
-  if (ca > 0) { ctx.save(); ctx.globalAlpha = ca; ctx.fillStyle = PAL.gold; ctx.shadowColor = PAL.gold; ctx.shadowBlur = 22; ctx.fillRect(left + caretX + 3, y - size * .5, 9, size * 1.0); ctx.restore(); }
+  const cxp = lt < HK.T0 - .02 ? HK.cx - 5 : left + caretX + 3;      // the first beats: the caret blinks alone at screen centre, then it is the cursor of the line
+  if (ca > 0) { ctx.save(); ctx.globalAlpha = ca; ctx.fillStyle = PAL.gold; ctx.shadowColor = PAL.gold; ctx.shadowBlur = 22; ctx.fillRect(cxp, y - size * .5, 9, size * 1.0); ctx.restore(); }
   return { left, y, caretX: left + caretX };
 }
 let HK_PTS_X0 = 0, HK_PTS_XW = 1;
 { const a = 960 - 22 * 60 / 2; HK_PTS_X0 = a; HK_PTS_XW = 22 * 60; }
 
 function hkBars(lt, pass) {                                     // pass 0: shapes (under the particles), pass 1: all text (over them, so speckle never covers a label)
-  const gm = sstep(1.78, 1.92, lt);                              // mat turns gold
+  const gm = sstep(HK_B.tGold, HK_B.tGold + .18, lt);                              // mat turns gold
   ctx.save();
   // caption
-  const capA = sstep(1.78, 1.98, lt) * (1 - sstep(HK.rel - .05, HK.rel + .01, lt));
+  const capA = sstep(2.85, 3.15, lt) * (1 - sstep(HK.rel - .05, HK.rel + .01, lt));
   if (pass && capA > 0) text('NEXT-WORD PROBABILITY', HK_B.x0, 412, { font: F_EN, weight: 700, size: 28, ls: 7, color: '#e6f0ff', alpha: capA, align: 'left', glow: 'rgba(0,8,30,.95)', blur: 14 });
   HK_BARS.forEach(([name, p], i) => {
     const kl = clamp((lt - HK_B.tUnfurl - i * HK_B.stag) / HK_B.dur), k = eout(kl); if (k <= 0) return;
@@ -166,7 +167,7 @@ function hkBars(lt, pass) {                                     // pass 0: shape
     } else {
       ctx.save();
       const g = ctx.createLinearGradient(HK_B.x0, 0, HK_B.x0 + 150, 0); g.addColorStop(0, 'rgba(70,185,235,1)'); g.addColorStop(1, 'rgba(140,110,235,.8)'); ctx.fillStyle = g; ctx.shadowColor = 'rgba(110,170,255,.6)'; ctx.shadowBlur = 8;
-      HK_FAN.forEach((m, j) => { const yy = y - (n * ph) / 2 + j * ph; ctx.globalAlpha = ea * Math.min(.9, m.a + .25); ctx.fillRect(HK_B.x0, yy, m.w * ek, 3); });
+      HK_FAN.forEach((m, j) => { const yy = y - (n * ph) / 2 + j * ph; ctx.globalAlpha = ea * Math.min(.95, m.a + .35); ctx.fillRect(HK_B.x0, yy, m.w * ek, 3.4); });
       ctx.restore();
     }
   }
@@ -174,7 +175,7 @@ function hkBars(lt, pass) {                                     // pass 0: shape
 }
 
 function hkSpark(lt) {                                           // the chosen word: a small gold light that leaves the end of the gold bar (above its label) and lands in the slot of "mat"
-  const t0 = 1.86, t1 = 2.04, k = clamp((lt - t0) / (t1 - t0)); if (k <= 0 || k >= 1) return;
+  const t0 = HK_B.tSpark, t1 = HK_TYPE_T(19) - .02, k = clamp((lt - t0) / (t1 - t0)); if (k <= 0 || k >= 1) return;
   const x0 = HK_B.x0 + HK_BARS[0][1] * HK_B.k + 6, y0 = hkRowY(0) - 30, x1 = hkLeftFinal() + hkAdv() * 19.5, y1 = HK.y1;
   const q = s => { const e = eio(s); return [lerp(x0, x1, e) + Math.sin(e * PI) * 34, lerp(y0, y1, e)]; };
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -196,17 +197,17 @@ function hkGlowLayer() {
   if (typeof fontsReady !== 'undefined' && fontsReady) HK_GLOW = c; else return c;
   return HK_GLOW;
 }
-const HK_TBOX = { x: HK.cx - 850, y: 560, w: 1700, h: 300 };    // the glow (shadow only) of the two subtitle lines, final letter spacing
-let HK_TGLOW = null;
-function hkTextGlow() {
-  if (HK_TGLOW) return HK_TGLOW;
+const HK_TBOX = { x: HK.cx - 850, y: 560, w: 1700, h: 300 };    // the glow (shadow only) of the two subtitle lines, final letter spacing; one baked layer per line
+const HK_TG = [null, null];
+function hkTextGlow(k) {
+  if (HK_TG[k]) return HK_TG[k];
   const c = document.createElement('canvas'); c.width = HK_TBOX.w; c.height = HK_TBOX.h; const x = c.getContext('2d');
   const cx = HK.cx, cy = HK.titleCy;
   x.translate(-HK_TBOX.x, -HK_TBOX.y - 2000); x.shadowOffsetY = 2000; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#000';
-  x.font = `700 54px ${F_EN}`; x.letterSpacing = '20px'; x.shadowColor = 'rgba(255,190,100,.45)'; x.shadowBlur = 22; x.fillText('LARGE LANGUAGE MODELS', cx + 10, cy + 190);
-  x.font = `700 40px ${F_ZH}`; x.letterSpacing = '10px'; x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 10; x.fillText('它如何工作 · 如何训练', cx + 5, cy + 298);
-  if (typeof fontsReady !== 'undefined' && fontsReady) HK_TGLOW = c; else return c;
-  return HK_TGLOW;
+  if (k === 0) { x.font = `700 54px ${F_EN}`; x.letterSpacing = '20px'; x.shadowColor = 'rgba(255,190,100,.45)'; x.shadowBlur = 22; x.fillText('LARGE LANGUAGE MODELS', cx + 10, cy + 190); }
+  else { x.font = `700 40px ${F_ZH}`; x.letterSpacing = '10px'; x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 10; x.fillText('它如何工作 · 如何训练', cx + 5, cy + 298); }
+  if (typeof fontsReady !== 'undefined' && fontsReady) HK_TG[k] = c; else return c;
+  return HK_TG[k];
 }
 function hkGold(x0, y0, x1, y1, s) {                             // goldGrad with a lifted floor: no dark brown corner, so a glyph never reads as half missing
   const g = ctx.createLinearGradient(x0, y0, x1, y1);
@@ -245,11 +246,11 @@ function hkFlare(x, y, a, len = 900, core = 22) {                  // thin anamo
 function hkTitle(lt) {
   const t = lt - HK.tHit, cx = HK.cx, cy = HK.titleCy;
   if (t < -.3) return;
-  const lbh = 138 * (1 - eio(clamp((lt - 3.1) / .9)));         // the timeline's letterbox height now: nothing from the title may light the black bars
+  const lbh = 138 * (1 - eio(clamp((lt - 6.2) / .9)));         // the timeline's letterbox height now: nothing from the title may light the black bars
   ctx.save(); ctx.beginPath(); ctx.rect(0, lbh, W, H - 2 * lbh); ctx.clip();
   // warm light behind the title
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  glowDot(cx, cy + 20, 760, 'rgba(255,160,70,A)', .13 * sstep(-.1, .3, t) + .16 * Math.exp(-Math.max(0, t) * 2.2) * (t > 0 ? 1 : 0));
+  glowDot(cx, cy + 20, 760, 'rgba(255,160,70,A)', (.13 + .02 * Math.sin(lt * 1.3)) * sstep(-.1, .3, t) + .16 * Math.exp(-Math.max(0, t) * 2.2) * (t > 0 ? 1 : 0));
   ctx.restore();
   // the faint gold halo of the title appears before the hit, so the eye sees where the particles are going
   const gh = .4 * sstep(-.5, -.05, t) * (1 - clamp(t / .12));
@@ -267,55 +268,56 @@ function hkTitle(lt) {
   const fk = clamp(t / 1.3);
   hkFlare(lerp(cx - 640, cx + 640, eio(fk)), cy, win(t, 0, 1.5, .06, .9) * .85, 520, 20);
   hkFlare(cx, cy, Math.exp(-Math.max(0, t) * 5) * (t > -.03 ? 1 : 0) * .5, 800, 16);
-  // subtitle lines (until the letter-spacing tween has settled they are drawn live; then the crisp text is drawn over its pre-rendered glow)
-  const ea = sstep(.06, .32, t), ls = lerp(46, 20, eout(clamp((t - .06) / .35))), settled = t >= .42 && hkTextGlow() === HK_TGLOW;
-  if (settled) { ctx.drawImage(HK_TGLOW, HK_TBOX.x, HK_TBOX.y); text('LARGE LANGUAGE MODELS', cx, cy + 190, { font: F_EN, weight: 700, size: 54, ls: 20, color: '#ecd9ac' }); }
+  // English line (6.7) and tagline (7.3): each tweens in (letter spacing / small slide) and then is drawn crisp over its pre-rendered glow
+  const te = lt - HK.tEn, ea = sstep(0, .4, te), ls = lerp(46, 20, eout(clamp(te / .6))), setE = te >= .62 && hkTextGlow(0) === HK_TG[0];
+  if (setE) { ctx.drawImage(HK_TG[0], HK_TBOX.x, HK_TBOX.y); text('LARGE LANGUAGE MODELS', cx, cy + 190, { font: F_EN, weight: 700, size: 54, ls: 20, color: '#ecd9ac' }); }
   else if (ea > 0) text('LARGE LANGUAGE MODELS', cx, cy + 190, { font: F_EN, weight: 700, size: 54, ls, color: '#ecd9ac', alpha: ea, glow: 'rgba(255,190,100,.45)', blur: 22 });
-  const ra = sstep(.1, .34, t);
+  const tt = lt - HK.tTag, ra = sstep(-.2, .3, tt);
   if (ra > 0) { ctx.save(); ctx.globalAlpha = ra * .8; const g = ctx.createLinearGradient(cx - 300, 0, cx + 300, 0); g.addColorStop(0, 'rgba(230,200,140,0)'); g.addColorStop(.5, 'rgba(240,210,150,1)'); g.addColorStop(1, 'rgba(230,200,140,0)'); ctx.fillStyle = g; ctx.fillRect(cx - 300 * eout(ra), cy + 244, 600 * eout(ra), 2); ctx.restore(); }
-  const ta = sstep(.08, .32, t), sl = (1 - eout(clamp((t - .08) / .32))) * 14;
+  const ta = sstep(0, .3, tt), sl = (1 - eout(clamp(tt / .35))) * 14, setT = tt >= .35 && hkTextGlow(1) === HK_TG[1];
   if (ta > 0) {
-    text('它如何工作 · 如何训练', cx, cy + 298 + sl, settled ? { size: 40, weight: 700, ls: 10, color: '#f0e3c4' } : { size: 40, weight: 700, ls: 10, color: '#f0e3c4', alpha: ta, glow: 'rgba(0,0,0,.6)', blur: 10 });
+    if (setT) ctx.drawImage(HK_TG[1], HK_TBOX.x, HK_TBOX.y);
+    text('它如何工作 · 如何训练', cx, cy + 298 + sl, setT ? { size: 40, weight: 700, ls: 10, color: '#f0e3c4' } : { size: 40, weight: 700, ls: 10, color: '#f0e3c4', alpha: ta, glow: 'rgba(0,0,0,.6)', blur: 10 });
     text('HOW THEY WORK  ·  HOW THEY LEARN', cx, cy + 354 + sl, { font: F_EN, weight: 600, size: 29, ls: 8, color: '#eadcb4', alpha: ta });
   }
   ctx.restore();
 }
 
 scene({
-  id: 'hook', start: 0, len: 2, fi: .01, fo: 0, mb: 2, bloom: 1,
-  subs: [[0.5, 2.5, '大语言模型，本质上只做一件事——', 'A large language model does just one thing —'], [2.6, 4.9, '预测下一个词。', 'it predicts the next word.']],
+  id: 'hook', start: 0, len: 4, fi: .01, fo: .4, mb: 2, bloom: 1,
+  subs: [[0.5, 4.5, '大语言模型，本质上只做一件事——', 'A large language model does just one thing —'], [4.8, 9.7, '预测下一个词。', 'it predicts the next word.']],
   sfx: [
     [0, 'thump'],
     ...Array.from({ length: 18 }, (_, i) => [HK.T0 + i * HK.DT, 'type']),
-    [1.525, 'riser', { dur: 1.6 }],
     [HK_B.tUnfurl - .03, 'swish'], ...HK_BARS.map((_, i) => [HK_B.tUnfurl + i * HK_B.stag, 'tick', { hi: i === 0 }]),
-    [2.14, 'chime', { midi: 84 }], [2.60, 'whoosh', { dur: .5, rev: 1 }],
-    ...[18, 19, 20, 21].map(i => [HK_TYPE_T(i), 'type']), [2.14, 'up'],
-    [3.125, 'hit', { k: .9 }], [3.125, 'swell', { dur: 1.8 }], [3.3, 'shimmer'], [3.45, 'sparkle', { dur: 1.4 }], [3.85, 'ding', { midi: 91 }],
+    [HK_B.tGold + .05, 'shimmer'], [HK_B.tSpark - .02, 'whoosh', { dur: .3 }],
+    ...[18, 19, 20, 21].map(i => [HK_TYPE_T(i), 'type']), [HK_TYPE_T(19), 'chime', { midi: 84 }], [HK_TYPE_T(19), 'up'],
+    [HK.tHit - 1.6, 'riser', { dur: 1.6 }],
+    [HK.tHit, 'hit', { k: .9 }], [HK.tHit, 'swell', { dur: 2.4 }], [HK.tHit + .15, 'shimmer'], [HK.tHit + .3, 'sparkle', { dur: 1.6 }],
+    [HK.tEn, 'ding', { midi: 91 }], [HK.tTag, 'ding', { midi: 96 }],
   ],
-  hits: [[HK.tHit, .22]],
-  cam: (lt, d) => ({ z: 1 + .015 * lt / d + .05 * sstep(3.1, 5, lt), x: 9 * Math.sin(lt * .5), y: 6 * Math.sin(lt * .4 + 1) }),
+  hits: [[HK.tHit, .25]],
+  cam: (lt, d) => ({ z: 1 + .01 * lt / d + .03 * sstep(5.2, 10, lt), x: 9 * Math.sin(lt * .5), y: 6 * Math.sin(lt * .4 + 1) }),
   draw(lt) {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    // backdrop fades up slowly: deep blue nebula
-    const amp = .7 * Math.pow(sstep(.1, 1.9, lt), .7);
-    if (amp > .005) glDraw(0, { time: lt * .8 + 20, tint: [.06, .13, .46], amp });
+    // backdrop fades up slowly: deep blue nebula (a little warmer once the title lands)
+    const amp = .72 * Math.pow(sstep(.3, 3.4, lt), .8), wm = sstep(6.2, 8, lt);
+    if (amp > .005) glDraw(0, { time: lt * .8 + 20, tint: [lerp(.06, .13, wm), lerp(.13, .15, wm), lerp(.46, .42, wm)], amp });
     // motes
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = '#cfe0ff';
-    const ma = sstep(.3, 1.3, lt);
+    const ma = sstep(.3, 2.0, lt);
     for (const m of HK_MOTES) { const y = ((m.y - lt * m.sp * m.z - 150) % 780 + 780) % 780 + 150; ctx.globalAlpha = ma * (.05 + .2 * m.z) * (.6 + .4 * Math.sin(lt * 2 + m.p)); ctx.fillRect(m.x + Math.sin(lt * .4 + m.p) * 12, y, m.z * 2.4, m.z * 2.4); }
     ctx.restore();
-    // heartbeat glow under the first caret
-    const hb = sstep(0, .1, lt) * Math.exp(-lt * 3.2) + .12 * sstep(.04, .3, lt) * (1 - sstep(.5, 1.2, lt));
-    if (hb > .01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(hkLeftFinal() + 7.5, HK.y0, 180 + 160 * Math.exp(-lt * 5), 'rgba(255,200,110,A)', hb * .6); ctx.restore(); }
+    // heartbeat glow under the first caret (screen centre), then a faint one at the start of the line
+    const hb = sstep(0, .1, lt) * Math.exp(-lt * 3.2) + .12 * sstep(.04, .3, lt), hb2 = .1 * sstep(.5, .9, lt) * (1 - sstep(1.4, 2.4, lt));
+    if (hb > .01 && lt < .5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(HK.cx, HK.y0, 180 + 160 * Math.exp(-lt * 5), 'rgba(255,200,110,A)', hb * .6 * (1 - sstep(.38, .48, lt))); ctx.restore(); }
+    if (hb2 > .005) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(hkLeftFinal() + 7.5, HK.y0, 200, 'rgba(255,200,110,A)', hb2 * .6); ctx.restore(); }
     hkBuild();
-    const s = hkSentence(lt);
+    hkSentence(lt);
     hkBars(lt, 0);
     hkSpark(lt);
     hkParticles(lt);
     hkBars(lt, 1);
     hkTitle(lt);
-    const fade = sstep(4.9, 4.99, lt);                         // the lockup dips to black in the last 0.1 s so the cut into s1 (which dips up from black) is clean
-    if (fade > 0) { ctx.save(); ctx.globalAlpha = fade; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   },
 });
