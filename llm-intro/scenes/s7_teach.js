@@ -3,15 +3,15 @@ const R = mulberry(20260007);
 const kk = (t, a, b) => clamp((t - a) / (b - a));
 const WARM = [.44, .3, .1], COLD = [.09, .15, .28];
 const PN = { x: 560, y: 180, w: 1180, h: 670 };                      // the chat panel (phase A)
-const CA = { x: 380, y: 300, w: 480, h: 400 }, CB = { x: 940, y: 300, w: 480, h: 400 };   // candidate answers (phase B)
+const CA = { x: 430, y: 300, w: 480, h: 400 }, CB = { x: 990, y: 300, w: 480, h: 400 };   // candidate answers (phase B)
 const PROMPT = 'How do I boil an egg?';
 const RAW = ['How do I peel a boiled egg?', 'How long do I boil an egg for?', 'How do I make egg salad?', 'How many calories are in an egg?', 'How do I tell if an egg is bad?'];
-const RAW_T = [.55, .68, .81, .94, 1.07];
+const RAW_T = [.4, .5, .6, .7, .8], RAW_D = .2;                          // the ramble is complete at 1.0 s and rests until the wipe passes (~2.0 s)
 const STEPS = ['Put eggs in a pot, cover with water.', 'Boil 9–12 minutes.', 'Cool in cold water.'];
 const STEPS_C = [['Put eggs in a pot,', 'cover with water.'], ['Boil 9–12 minutes.'], ['Cool in cold water.']];
 const BAD = ['Eggs are tasty. You can', 'boil them, or fry them.', 'It depends, really…'];
-const MID = [960, 340], MB = [235, 490], MR = 104, MIDR = 190;                             // where the model ends up (finale) / where it sits in phase B
-const T_WIPE = 1.25, T_WE = 1.65, T_FIN = 3.5, T_B = 3.75, T_PICK = 5.0;   // beat-locked events (local seconds): wipe on beat 2, cards on beat 6, pick on beat 8
+const MID = [960, 340], MB = [245, 490], MR = 120, MIDR = 190;                             // where the model ends up (finale) / where it sits in phase B
+const T_WIPE = 1.875, T_WE = 2.2, T_A_OUT = 3.15, T_B_IN = 3.38, T_PICK = 4.0625;   // events (local seconds): wipe on beat 3, phase A out, phase B in, pick on the eighth after beat 6
 const AMB = '#ffdeb0';                                                // warm amber for the human-made things (PAL.gold stays reserved for the final emphasis)
 const DUST = Array.from({ length: 70 }, () => ({ x: R() * W, y: R() * H, z: .3 + R() * .7, p: R() * TAU, s: .4 + R() * .8 }));
 const PAIRS = Array.from({ length: 26 }, () => ({ y: 165 + R() * 700, sp: 90 + R() * 150, off: R() * 5000, s: .9 + R() * .8, ok: R() < .5 ? 1 : 0, z: R() }));
@@ -53,7 +53,7 @@ function person(x, y, s, a, col = '255,222,176') {
   ctx.moveTo(32, -32); ctx.arc(0, -32, 32, 0, TAU);
   ctx.fillStyle = `rgba(${col},.15)`; ctx.fill(); ctx.lineWidth = 3 / Math.max(.5, s * .9); ctx.strokeStyle = `rgba(${col},.92)`; ctx.stroke(); ctx.restore();
 }
-function docCard(cx, cy, w, h, a, rot = 0, wr = 1, glowA = .6) {          // a handwritten example: card, header, lines (wr = how much is written)
+function docCard(cx, cy, w, h, a, rot = 0, wr = 1, glowA = .4) {          // a handwritten example: card, header, lines (wr = how much is written)
   if (glowA > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(cx, cy, Math.max(w, h) * .75, 'rgba(255,200,120,A)', a * glowA * .3); ctx.restore(); }
   ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.globalAlpha = a;
   ctx.beginPath(); ctx.moveTo(-w / 2 + 10, -h / 2); ctx.lineTo(w / 2 - 26, -h / 2); ctx.lineTo(w / 2, -h / 2 + 26); ctx.lineTo(w / 2, h / 2 - 10);
@@ -74,17 +74,11 @@ function pencil(x, y, a, s = 1) {
   ctx.fillStyle = '#ffe3b0'; rrect(-7, -64, 14, 54, 3); ctx.fill();
   ctx.beginPath(); ctx.moveTo(-7, -10); ctx.lineTo(7, -10); ctx.lineTo(0, 8); ctx.closePath(); ctx.fillStyle = '#ffcb7a'; ctx.fill(); ctx.restore();
 }
-function hand(x, y, s, a, press = 0) {                               // a pointing hand (index finger out, three curled fingers, thumb), fingertip at (x, y)
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(x + 14, y + 52, 84, 'rgba(255,205,130,A)', a * .2); ctx.restore();
-  ctx.save(); ctx.translate(x, y); const sc = s * (1 - .07 * press); ctx.scale(sc, sc); ctx.globalAlpha = a; ctx.fillStyle = '#ffe9cf'; ctx.strokeStyle = 'rgba(120,84,50,.8)'; ctx.lineWidth = 2.6; ctx.lineJoin = 'round';
-  const fing = [[11, 38, 18, 52], [29, 44, 18, 48], [47, 54, 17, 40]];                     // curled middle / ring / little finger knuckles (behind the palm)
-  for (const [rx, ry, rw, rh] of fing) { rrect(rx, ry, rw, rh, rw / 2); ctx.fill(); ctx.stroke(); }
-  ctx.save(); ctx.translate(-14, 86); ctx.rotate(.62); rrect(-9, -26, 18, 52, 9); ctx.fill(); ctx.stroke(); ctx.restore();   // thumb
-  rrect(-11, 0, 22, 96, 11); ctx.fill(); ctx.stroke();                                         // index finger
-  ctx.beginPath(); ctx.moveTo(-12, 70); ctx.lineTo(66, 70); ctx.lineTo(66, 104); ctx.quadraticCurveTo(66, 134, 38, 134); ctx.lineTo(-2, 134); ctx.quadraticCurveTo(-24, 134, -24, 112); ctx.closePath(); ctx.fill();   // palm
-  ctx.beginPath(); ctx.moveTo(-12, 70); ctx.lineTo(-24, 112); ctx.quadraticCurveTo(-24, 134, -2, 134); ctx.lineTo(38, 134); ctx.quadraticCurveTo(66, 134, 66, 104); ctx.lineTo(66, 70); ctx.stroke();
-  ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(11, 56); ctx.lineTo(11, 78); ctx.moveTo(29, 66); ctx.lineTo(29, 82); ctx.moveTo(47, 72); ctx.lineTo(47, 84); ctx.stroke();
-  ctx.restore();
+function cursor(x, y, s, a, press = 0) {                             // the rater's pointer: an arrow cursor with its tip at (x, y)
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(x + 8 * s, y + 14 * s, 60, 'rgba(255,205,130,A)', a * .2); ctx.restore();
+  ctx.save(); ctx.translate(x, y); const sc = s * (1 - .12 * press); ctx.scale(sc, sc); ctx.globalAlpha = a; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 40); ctx.lineTo(10, 31); ctx.lineTo(18, 50); ctx.lineTo(27, 46); ctx.lineTo(19, 28); ctx.lineTo(32, 28); ctx.closePath();
+  ctx.fillStyle = '#fff3de'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(70,46,24,.9)'; ctx.stroke(); ctx.restore();
 }
 function iconPot(x, y, s, a) {
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.globalAlpha = a; ctx.strokeStyle = 'rgba(255,236,205,.92)'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -129,7 +123,7 @@ function roundedPoly(pts, rad, n = 8) {                                  // dens
   out.push(pts[pts.length - 1]); return out;
 }
 const LINE_Y = 862, BAR = { x: 1600, y: 300, h: 380 };                    // reward bar geometry
-const LOOP = roundedPoly([[BAR.x, BAR.y + BAR.h + 20], [BAR.x, LINE_Y], [MB[0], LINE_Y], [MB[0], MB[1] + 124]], 46);
+const LOOP = roundedPoly([[BAR.x, BAR.y + BAR.h + 20], [BAR.x, LINE_Y], [MB[0], LINE_Y], [MB[0], MB[1] + MR * 1.05 * .89 + 16]], 46);
 const LOOP_LEN = []; { let s = 0; LOOP_LEN.push(0); for (let i = 1; i < LOOP.length; i++) { s += Math.hypot(LOOP[i][0] - LOOP[i - 1][0], LOOP[i][1] - LOOP[i - 1][1]); LOOP_LEN.push(s); } }
 function loopAt(f) {                                                     // point + direction at fraction f along the loop
   const L = LOOP_LEN[LOOP_LEN.length - 1] * f; let i = 1; while (i < LOOP.length - 1 && LOOP_LEN[i] < L) i++;
@@ -144,19 +138,19 @@ function glassCard(r, o, a) {                                            // glas
 // ---------------------------------------------------------------- panel contents (phase A)
 function rawContent(lt, a) {
   for (let i = 0; i < RAW.length; i++) {
-    const n = RAW[i].length, s = typed(RAW[i], kk(lt, RAW_T[i], RAW_T[i] + .24) * n);
+    const n = RAW[i].length, s = typed(RAW[i], kk(lt, RAW_T[i], RAW_T[i] + RAW_D) * n);
     if (!s) continue;
-    text(s, PN.x + 40, 428 + i * 66, { font: F_MONO, size: 32, color: '#a9b6d4', alpha: a * (.98 - i * .06), align: 'left' });
+    text(s, PN.x + 40, 428 + i * 66, { font: F_MONO, size: 32, color: '#c4cfe8', alpha: a * (.98 - i * .03), align: 'left' });
   }
-  const li = Math.min(RAW.length - 1, Math.max(0, RAW_T.findLastIndex(t => lt >= t)));
-  if (lt >= RAW_T[0]) { const s = typed(RAW[li], kk(lt, RAW_T[li], RAW_T[li] + .24) * RAW[li].length); caret(PN.x + 40 + measure(s, 32, F_MONO) + 6, 428 + li * 66, 36, lt, '#c4cfe8', a); }
+  const last = RAW.length - 1;                                           // the caret appears (and blinks) only once the last line is complete, so it never smears while typing
+  if (lt >= RAW_T[last] + RAW_D) caret(PN.x + 40 + measure(RAW[last], 32, F_MONO) + 8, 428 + last * 66, 36, lt, '#c4cfe8', a);
 }
 function fineContent(lt, a) {
   const ys = [455, 595, 735], icons = [iconPot, iconClock, iconDrop];
   ctx.save(); ctx.globalAlpha = a * .5; ctx.strokeStyle = 'rgba(255,220,170,.22)'; ctx.lineWidth = 1.5; ctx.beginPath();
   for (const y of [525, 665]) { ctx.moveTo(PN.x + 40, y); ctx.lineTo(PN.x + PN.w - 40, y); } ctx.stroke(); ctx.restore();
   STEPS.forEach((s, i) => {
-    const k = kk(lt, T_WE + i * .18, T_WE + .3 + i * .18), e = eout(k), x = PN.x + 100 - 12 * (1 - e);
+    const k = kk(lt, T_WIPE + .08 + i * .07, T_WIPE + .28 + i * .07), e = eout(k), x = PN.x + 100 - 12 * (1 - e);
     ctx.save(); ctx.globalAlpha = a * k; ctx.beginPath(); ctx.arc(PN.x + 90, ys[i], 36, 0, TAU); ctx.fillStyle = 'rgba(255,222,176,.2)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = AMB; ctx.stroke(); ctx.restore();
     text(String(i + 1), PN.x + 90, ys[i] + 2, { font: F_UI, weight: 700, size: 40, color: AMB, alpha: a * k });
     text(s, x + 70, ys[i] + 1, { font: F_UI, weight: 500, size: 42, color: '#fff6e6', alpha: a * k, align: 'left' });
@@ -195,10 +189,10 @@ function streams(lt, vis) {
   ctx.save(); ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for (const p of PAIRS) {
     const x = W + 150 - ((lt * p.sp + p.off) % span), y = p.y + 6 * Math.sin(lt * .8 + p.off), w = 54 * p.s, h = 36 * p.s, g = 10 * p.s;
-    const inModel = lt > 3.5 && x + 2 * w + g > 80 && x < 360 && y > 380 && y < 640, inBar = x + 2 * w + g > 1550 && x < 1650 && y > 280 && y < 700;
-    const inCards = x + 2 * w + g > 330 && x < 1450 && y > 150 && y < 700, inRaters = x + 2 * w + g > 280 && x < 1300 && y > 700 && y < 840;   // keep clear of the cards and the rater caption
-    const inLoop = lt > 4.9 && x + 2 * w + g > 190 && x < 1650 && y > 820 && y < 900;                                                      // ... and of the update loop
-    const a = vis * (.26 + .2 * p.z) * (inCards ? .14 : inRaters ? .3 : inLoop ? .1 : inModel || inBar ? .3 : 1);
+    const inModel = lt > 3.4 && x + 2 * w + g > 80 && x < 400 && y > 300 && y < 650, inBar = x + 2 * w + g > 1470 && x < 1760 && y > 215 && y < 710;
+    const inCards = x + 2 * w + g > 380 && x < 1500 && y > 150 && y < 700, inRaters = x + 2 * w + g > 280 && x < 1480 && y > 700 && y < 840 || (lt > 3.4 && lt < 4.4 && x + 2 * w + g > 620 && x < 1480 && y > 480 && y < 840);   // keep clear of the cards and the rater caption
+    const inLoop = lt > 4.1 && x + 2 * w + g > 190 && x < 1650 && y > 820 && y < 900;                                                      // ... and of the update loop
+    const a = vis * (.26 + .2 * p.z) * (inCards ? .14 : inRaters ? .3 : inLoop ? .1 : inModel || inBar ? .15 : 1);
     for (let k = 0; k < 2; k++) {
       const bx = x + k * (w + g), win = k === p.ok;
       ctx.globalAlpha = a * (win ? 1.3 : .85); ctx.strokeStyle = win ? PAL.mint : PAL.coral; ctx.fillStyle = win ? 'rgba(94,242,176,.1)' : 'rgba(255,107,122,.07)';
@@ -217,20 +211,20 @@ scene({
     [3.9, 7.3, '人们更喜欢的回答得高分，它就学会了更有用、更诚实', 'Answers people prefer score higher — so it learns to be more helpful and honest'],
   ],
   sfx: [
-    [.05, 'pop'], [.1, 'type'], [.17, 'type'], [.24, 'type'], [.31, 'type'], [.38, 'type'], [.45, 'type'],
-    [.55, 'type'], [.68, 'type'], [.81, 'type'], [.94, 'type'], [1.07, 'type'],
+    [.05, 'pop'], [.08, 'type'], [.15, 'type'], [.22, 'type'], [.29, 'type'], [.36, 'type'],
+    [.4, 'type'], [.5, 'type'], [.6, 'type'], [.7, 'type'], [.8, 'type'],
     [.8, 'tick', { hi: true }], [.9, 'tick', { hi: true }], [1.0, 'tick', { hi: true }], [1.1, 'tick', { hi: true }], [1.2, 'tick', { hi: true }], [1.3, 'tick', { hi: true }],
-    [1.0, 'swell', { dur: .25 }], [1.25, 'swish'], [1.45, 'chime', { midi: 84 }],
-    [1.65, 'chip', { midi: 72 }], [1.83, 'chip', { midi: 76 }], [2.01, 'chip', { midi: 79 }],
-    [3.45, 'whoosh', { dur: .4 }], [3.75, 'pop'], [3.95, 'pop'],
-    [4.45, 'tick'], [4.85, 'tick'], [5.0, 'up'], [5.15, 'down'], [5.0, 'count', { dur: .55 }],
-    [5.0, 'whoosh', { dur: .55 }], [5.5, 'swell', { dur: 1.1 }],
-    [5.625, 'ding', { midi: 79 }], [6.25, 'ding', { midi: 84 }], [6.875, 'ding', { midi: 88 }], [6.875, 'sparkle', { dur: .6 }],
+    [1.5, 'swell', { dur: .35 }], [1.875, 'swish'], [2.2, 'chime', { midi: 84 }],
+    [1.98, 'chip', { midi: 72 }], [2.06, 'chip', { midi: 76 }], [2.14, 'chip', { midi: 79 }],
+    [3.3, 'whoosh', { dur: .4 }], [3.45, 'pop'], [3.75, 'pop'],
+    [3.9, 'tick'], [4.0625, 'up'], [4.1875, 'down'], [4.0625, 'count', { dur: .55 }],
+    [5.0, 'whoosh', { dur: .42 }], [4.9, 'swell', { dur: .45 }],
+    [5.3125, 'ding', { midi: 79 }], [5.625, 'ding', { midi: 84 }], [5.9375, 'ding', { midi: 88 }], [5.9375, 'sparkle', { dur: .6 }],
   ],
   cam: camPush(.03),
   draw(lt) {
     // ---- backdrop: cold and flat at first, warms at the moment the human examples take effect (amber with a teal counter-glow)
-    const kW = sstep(1.3, 2.0, lt), tint = COLD.map((c, i) => lerp(c, WARM[i], kW));
+    const kW = sstep(1.8, 2.4, lt), tint = COLD.map((c, i) => lerp(c, WARM[i], kW));
     glDraw(0, { time: lt * .5 + 55, tint, amp: .9 + .3 * kW });
     if (kW > 0) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -244,15 +238,15 @@ scene({
     }
     ctx.restore();
 
-    const bGone = 1 - sstep(5.3, 5.6, lt), bIn = sstep(T_FIN + .05, T_B + .05, lt);   // phase B visibility
-    streams(lt, sstep(3.9, 4.6, lt) * (1 - .4 * sstep(5.5, 6.0, lt)));
+    const bGone = 1 - sstep(4.85, 5.15, lt), bIn = sstep(T_B_IN, T_B_IN + .35, lt);   // phase B visibility (it only starts once phase A has gone)
+    streams(lt, sstep(3.7, 4.4, lt) * (1 - .4 * sstep(5.2, 5.7, lt)));
 
     // ---- left column in phase A: the human writing examples; it glides to the bottom and becomes "human raters"
-    const pA = sstep(0, .4, lt) * (1 - sstep(3.3, 3.65, lt)), rP = sstep(3.8, 4.15, lt) * bGone;   // the writer fades out at the top left; the same person returns as a rater at the bottom
+    const pA = sstep(0, .4, lt) * (1 - sstep(T_A_OUT, T_A_OUT + .22, lt)), rP = sstep(3.5, 3.85, lt) * bGone;   // the writer fades out at the top left; the same person returns as a rater at the bottom
     if (rP > 0) person(520, 770, .62, rP);
     if (pA > 0) {
       person(250, 360, 1.05, pA);
-      const dA = sstep(.1, .45, lt) * (1 - sstep(3.2, 3.5, lt)), wr = kk(lt, .1, .85);
+      const dA = sstep(.1, .45, lt) * (1 - sstep(T_A_OUT, T_A_OUT + .22, lt)), wr = kk(lt, .1, .85);
       if (dA > 0) {
         docCard(250, 600, 200, 250, dA, -.04, wr);
         const li = Math.floor(wr * 7); pencil(250 - 66 + 132 * ((wr * 7) % 1) * .9 + 18, 600 - 125 + 50 + clamp(li, 0, 4) * 34, dA * (1 - sstep(.85, 1.15, lt)), 1);
@@ -260,7 +254,7 @@ scene({
         text('human-written examples', 250, 792, { font: F_UI, size: 22, color: '#d8c6a4', alpha: dA });
       }
     }
-    const rA = sstep(3.8, 4.2, lt) * bGone;
+    const rA = sstep(3.55, 3.9, lt) * bGone;
     if (rA > 0) { text('人类评审', 450, 757, { font: F_UI, weight: 600, size: 24, color: '#ffe3b8', alpha: rA, align: 'right' }); text('human raters', 450, 788, { font: F_UI, size: 22, color: '#d8c6a4', alpha: rA, align: 'right' }); }
     // documents fly from the person into the panel; on landing a spark runs on to the model icon and lights it
     const ICON = [PN.x + PN.w - 96, 345], SPK = .3;
@@ -269,7 +263,7 @@ scene({
       const k = kk(lt, c.t0, c.t0 + c.dur), tl = lt - c.t0 - c.dur;
       if (tl > SPK + .05) landed += Math.exp(-(tl - SPK - .05) * 5) * .6;
       if (k <= 0 || k >= 1) {
-        if (k >= 1 && tl < .5) { const g = Math.exp(-tl * 7); ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(PN.x, c.ey, 120 * (1 + (1 - g)), 'rgba(255,205,140,A)', .6 * g); ctx.restore(); }
+        if (k >= 1 && tl < .5) { const g = Math.exp(-tl * 7); ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(PN.x, c.ey, 120 * (1 + (1 - g)), 'rgba(255,205,140,A)', .32 * g); ctx.restore(); }
         if (k >= 1 && tl < SPK) {                                                // the spark runs on to the model icon
           ctx.save(); ctx.globalCompositeOperation = 'lighter';
           for (let q = 0; q < 4; q++) { const f2 = eio(Math.max(0, tl - q * .025) / SPK); glowDot(lerp(PN.x, ICON[0], f2), lerp(c.ey, ICON[1], f2) - 90 * Math.sin(PI * f2), 20 - q * 3.5, 'rgba(255,215,150,A)', .8 - q * .18); }
@@ -278,12 +272,12 @@ scene({
         continue;
       }
       const e = eio(k), u = 1 - e, sc = lerp(.62, .34, e);
-      for (let g = 1; g >= 0; g--) { const e2 = eio(clamp(k - g * .06)), u2 = 1 - e2; docCard(u2 * u2 * 330 + 2 * u2 * e2 * c.cx + e2 * e2 * c.ex, u2 * u2 * 600 + 2 * u2 * e2 * c.cy + e2 * e2 * c.ey, 200 * sc, 250 * sc, (g ? .14 : 1) * (1 - sstep(.8, 1, k)), c.rot * e, 1, g ? 0 : .8); }
+      for (let g = 1; g >= 0; g--) { const e2 = eio(clamp(k - g * .06)), u2 = 1 - e2; docCard(u2 * u2 * 330 + 2 * u2 * e2 * c.cx + e2 * e2 * c.ex, u2 * u2 * 600 + 2 * u2 * e2 * c.cy + e2 * e2 * c.ey, 200 * sc, 250 * sc, (g ? .14 : 1) * (1 - sstep(.8, 1, k)), c.rot * e, 1, g ? 0 : .5); }
     }
 
     // ---- the chat panel (phase A): raw (cold) | fine-tuned (warm), swapped by a wipe at the beat, held, then dissolves into phase B
     const wk = eio(kk(lt, T_WIPE, T_WE)), wipe = lerp(PN.x - 30, PN.x + PN.w + 30, wk);
-    const pIn = eout(kk(lt, 0, .4)), gA = pIn * (1 - sstep(T_FIN, T_FIN + .2, lt));
+    const pIn = eout(kk(lt, 0, .4)), gA = pIn * (1 - sstep(T_A_OUT, T_A_OUT + .22, lt));
     if (gA > 0) {
       ctx.save(); ctx.translate(0, (1 - pIn) * 14);
       if (wipe < PN.x + PN.w) {
@@ -296,18 +290,18 @@ scene({
         glassCard(PN, { fill: 'rgba(30,24,22,.76)', stroke: 'rgba(255,215,150,.55)', glow: 'rgba(255,190,110,.12)' }, gA);
         fineContent(lt, gA); ctx.restore();
       }
-      pill('pretrained · 预训练模型', PN.x + 40, 345, '#aab6d4', gA * sstep(.1, .4, lt) * (1 - sstep(T_WIPE, T_WIPE + .15, lt)));
-      pill('fine-tuned · 微调后', PN.x + 40, 345, PAL.mint, gA * sstep(T_WE - .1, T_WE + .2, lt));
+      pill('pretrained · 预训练模型', PN.x + 40, 345, '#aab6d4', gA * sstep(.1, .4, lt) * (1 - sstep(T_WIPE - .06, T_WIPE + .04, lt)));
+      pill('fine-tuned · 微调后', PN.x + 40, 345, PAL.mint, gA * sstep(T_WIPE + .1, T_WIPE + .3, lt));
       // the model, small, at the panel's corner: it lights as each human example reaches it and warms after the wipe
       const mw = sstep(T_WIPE, T_WE, lt);
-      text('model · 模型', PN.x + PN.w - 158, 345, { font: F_UI, weight: 600, size: 26, color: '#cfe7ff', alpha: gA * .9, align: 'right' });
+      text('model · 模型', PN.x + PN.w - 158, 345, { font: F_UI, weight: 600, size: 30, color: '#cfe7ff', alpha: gA * .9, align: 'right' });
       model(ICON[0], ICON[1], 46, lt, gA, mw, clamp(landed, 0, 1.4));
       if (lt > T_WIPE - .05 && lt < T_WE + .05) { const wa = Math.sin(PI * kk(lt, T_WIPE, T_WE)); ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createLinearGradient(wipe - 60, 0, wipe, 0);
         g.addColorStop(0, 'rgba(255,200,130,0)'); g.addColorStop(1, `rgba(255,230,190,${.55 * wa * gA})`); ctx.beginPath(); ctx.rect(PN.x, PN.y - 4, PN.w, PN.h + 8); ctx.clip(); ctx.fillStyle = g; ctx.fillRect(wipe - 60, PN.y - 4, 60, PN.h + 8);
         ctx.fillStyle = `rgba(255,248,230,${.85 * wa * gA})`; ctx.fillRect(wipe - 1.5, PN.y - 4, 3, PN.h + 8); ctx.restore(); }
       // prompt bubble (typed, grows with the text)
-      const full = measure(PROMPT, 36, F_UI, 600) + 56, ts = typed(PROMPT, kk(lt, .08, .5) * PROMPT.length), bw = Math.max(70, measure(ts, 36, F_UI, 600) + 56);
-      const ba = gA * sstep(0, .12, lt), bx0 = PN.x + PN.w - 40 - full, by = PN.y + 70;
+      const full = measure(PROMPT, 36, F_UI, 600) + 56, ts = typed(PROMPT, kk(lt, .06, .4) * PROMPT.length), bw = Math.max(70, measure(ts, 36, F_UI, 600) + 56);
+      const ba = gA * sstep(0, .1, lt), bx0 = PN.x + PN.w - 40 - full, by = PN.y + 70;
       ctx.save(); ctx.globalAlpha = ba; rrect(bx0, by - 34, bw, 68, 30); ctx.fillStyle = 'rgba(95,227,255,.13)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(95,227,255,.75)'; ctx.stroke(); ctx.restore();
       text(ts, bx0 + 28, by + 2, { font: F_UI, weight: 600, size: 36, color: '#eaf6ff', alpha: ba, align: 'left' });
       ctx.restore();
@@ -315,10 +309,10 @@ scene({
 
     // ---- phase B: two candidate answers arrive as the panel dissolves, the hand comes from the rater, picks B, reward rises, loop back into the model
     const vis = bIn * bGone;
-    const pick = sstep(T_PICK - .05, T_PICK + .2, lt), ek = eout(kk(lt, T_FIN + .05, T_B + .25)), slide = (1 - ek) * 34;
+    const pick = sstep(T_PICK - .05, T_PICK + .2, lt), ek = eout(kk(lt, T_B_IN, T_B_IN + .45)), slide = (1 - ek) * 34;
     if (vis > 0) {
       // the model feeds both answers: faint threads that run behind the cards
-      const tA = vis * (1 - sstep(5.3, 5.5, lt)) * .5;
+      const tA = vis * (1 - sstep(4.55, 4.8, lt)) * .5;
       if (tA > 0) {
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
         for (const [ty, tx1, ph] of [[470, CA.x + 2, 0], [512, CB.x + 2, .5]]) {
@@ -332,7 +326,7 @@ scene({
       const bw = measure(PROMPT, 36, F_UI, 600) + 56, bx = (CA.x + CB.x + CB.w) / 2;
       ctx.save(); ctx.translate(0, slide); ctx.globalAlpha = vis; rrect(bx - bw / 2, 190 - 34, bw, 68, 30); ctx.fillStyle = 'rgba(95,227,255,.13)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(95,227,255,.75)'; ctx.stroke(); ctx.restore();
       text(PROMPT, bx - bw / 2 + 28, 192 + slide, { font: F_UI, weight: 600, size: 36, color: '#eaf6ff', alpha: vis, align: 'left' });
-      text('Which answer is better? · 哪个回答更好？', bx, 262 + slide, { font: F_UI, weight: 600, size: 30, color: '#ffe3b8', alpha: vis * sstep(3.8, 4.15, lt) });
+      text('Which answer is better? · 哪个回答更好？', bx, 262 + slide, { font: F_UI, weight: 600, size: 30, color: '#ffe3b8', alpha: vis * sstep(3.6, 3.9, lt) });
       // card A (the weaker one) and card B
       ctx.save(); ctx.translate(0, slide);
       const aV = vis * (1 - .35 * pick), pOn = lt > T_PICK - .05;
@@ -343,38 +337,35 @@ scene({
       if (pOn) { badge(CA.x + CA.w - 46, CA.y + 46, 28, PAL.coral, aV * kk(lt, T_PICK, T_PICK + .25) * .95, 'x'); badge(CB.x + CB.w - 46, CB.y + 46, 30, PAL.mint, vis * kk(lt, T_PICK - .05, T_PICK + .15), 'ok'); }
       ctx.restore();
       // reward meter
-      const rwA = vis * sstep(3.9, 4.25, lt), v = lerp(.1, .88, eio(kk(lt, T_PICK - .05, 5.4)));
+      const rwA = vis * sstep(3.65, 3.95, lt), v = lerp(.1, .88, eio(kk(lt, T_PICK - .05, 4.8)));
       if (rwA > 0) {
         const by0 = BAR.y + slide, bh2 = BAR.h;
         ctx.save(); ctx.globalAlpha = rwA; rrect(BAR.x - 24, by0, 48, bh2, 24); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(180,215,255,.5)'; ctx.stroke();
         ctx.save(); rrect(BAR.x - 24, by0, 48, bh2, 24); ctx.clip();
         const g = ctx.createLinearGradient(0, by0 + bh2, 0, by0); g.addColorStop(0, '#2fb88a'); g.addColorStop(.6, PAL.mint); g.addColorStop(1, AMB);
         ctx.fillStyle = g; ctx.fillRect(BAR.x - 24, by0 + bh2 * (1 - v), 48, bh2 * v); ctx.restore(); ctx.restore();
-        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(BAR.x, by0 + bh2 * (1 - v), 54, 'rgba(255,230,160,A)', rwA * (.3 + .4 * kk(lt, T_PICK - .05, T_PICK + .35))); ctx.restore();
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(BAR.x, by0 + bh2 * (1 - v), 40, 'rgba(255,205,130,A)', rwA * (.1 + .12 * kk(lt, T_PICK - .05, T_PICK + .35))); ctx.restore();
         text('reward · 奖励', BAR.x, 262 + slide, { font: F_UI, weight: 600, size: 30, color: '#f0fbf0', alpha: rwA });
       }
     }
-    // the hand: comes from the human rater, glides to B, presses
-    const hA = sstep(4.0, 4.25, lt) * (1 - sstep(5.1, 5.4, lt));
+    // the rater's cursor: leaves the person, glides under the cards to B and clicks on its body
+    const hA = sstep(3.55, 3.8, lt) * (1 - sstep(4.3, 4.55, lt));
     if (hA > 0) {
-      const toB = eio(kk(lt, 4.25, 4.8)), hov = 1 - toB;
-      const hx = lerp(575, 1180, toB), hy = lerp(742, 700, toB) + 4 * Math.sin(lt * 5) * hov;
-      const press = Math.sin(PI * kk(lt, 4.85, 5.1));
-      hand(hx, hy - 12 * press, .8, hA, press);
-      if (lt > T_PICK - .05 && lt < 5.7) { const k = kk(lt, T_PICK - .05, 5.7); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - k; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,225,170,.9)'; ctx.beginPath(); ctx.arc(1180, 690, 14 + 70 * eout(k), 0, TAU); ctx.stroke(); ctx.restore(); }
+      const tb = eio(kk(lt, 3.6, 4.0)), u = 1 - tb, hx = u * u * 650 + 2 * u * tb * 1000 + tb * tb * 1405, hy = u * u * 770 + 2 * u * tb * 800 + tb * tb * 545;
+      const press = Math.sin(PI * kk(lt, 3.98, T_PICK + .12));
+      cursor(hx, hy, 1.15, hA, press);
+      if (lt > T_PICK - .05 && lt < 4.7) { const k = kk(lt, T_PICK - .05, 4.7); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (1 - k) * hA; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,225,170,.9)'; ctx.beginPath(); ctx.arc(1405, 545, 12 + 46 * eout(k), 0, TAU); ctx.stroke(); ctx.restore(); }
     }
-    // the model (left, phase B) + update loop, then the model rises to the top centre
-    const warm = sstep(5.3, 6.0, lt), dings = [5.625, 6.25, 6.875];
+    // the model (left, phase B) + update loop, then the model travels to the top centre (position and size interpolate; nothing cross-fades)
+    const warm = sstep(4.7, 5.2, lt), dings = [5.3125, 5.625, 5.9375];
     let dp = 0; for (const t0 of dings) if (lt > t0) dp += Math.exp(-(lt - t0) * 4.5);
-    const upd = sstep(5.3, 5.4, lt) * (1 - sstep(5.5, 5.9, lt)), pulse = Math.max(upd, .25 * sstep(6.0, 6.3, lt) + .9 * Math.min(1, dp));
-    const mA = bIn * (1 - sstep(5.45, 5.8, lt));
+    const upd = sstep(4.55, 4.7, lt) * (1 - sstep(4.85, 5.2, lt)), pulse = Math.max(upd, .25 * sstep(5.2, 5.5, lt) + .9 * Math.min(1, dp));
+    const mA = sstep(T_B_IN + .05, T_B_IN + .4, lt), tm = eio(kk(lt, 5.0, 5.42));
     if (mA > 0) {
-      model(MB[0], MB[1], MR, lt, mA, warm, pulse);
-      const lab = mA * (1 - sstep(5.3, 5.5, lt)); if (lab > 0) text('model · 模型', MB[0], 345, { font: F_UI, weight: 600, size: 30, color: '#e2f0ff', alpha: lab });
+      model(lerp(MB[0], MID[0], tm), lerp(MB[1], MID[1], tm), lerp(MR, MIDR, tm), lt, mA, warm, pulse);
+      const lab = mA * (1 - sstep(4.85, 5.0, lt)); if (lab > 0) text('model · 模型', MB[0], 345, { font: F_UI, weight: 600, size: 30, color: '#e2f0ff', alpha: lab });
     }
-    const mB = sstep(5.5, 5.85, lt), mrB = lerp(MIDR * .9, MIDR, eout(kk(lt, 5.4, 6.1)));
-    if (mB > 0) model(MID[0], MID[1], mrB, lt, mB, warm, pulse);
-    const lp = sstep(T_PICK + .05, 5.4, lt), la = 1 - sstep(5.7, 6.0, lt);
+    const lp = sstep(T_PICK + .05, 4.7, lt), la = 1 - sstep(4.85, 5.1, lt);
     if (lp > 0 && la > 0) {
       const [hx, hy, ang, hi] = loopAt(lp);
       ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -387,17 +378,17 @@ scene({
       const ua = sstep(.3, .6, lp) * la; if (ua > 0) text('update · 更新', (BAR.x + MB[0]) / 2, LINE_Y - 34, { font: F_UI, weight: 700, size: 30, color: '#fff0d4', alpha: ua });
     }
     // ---- finale: three values as glowing chips under the model (empty slots are outlined first, so the set of three reads at once)
-    const items = [['helpful', '有用', PAL.cyan, 5.625], ['honest', '诚实', PAL.mint, 6.25], ['harmless', '无害', PAL.violet, 6.875]];
-    const cw = 410, chH = 136, gap = 66, x0 = W / 2 - (cw * 3 + gap * 2) / 2, cy = 690, slotA = sstep(5.45, 5.8, lt);
+    const items = [['helpful', '有用', PAL.cyan, 5.3125], ['honest', '诚实', PAL.mint, 5.625], ['harmless', '无害', PAL.violet, 5.9375]];
+    const cw = 410, chH = 136, gap = 66, x0 = W / 2 - (cw * 3 + gap * 2) / 2, cy = 690, slotA = sstep(5.15, 5.4, lt);
     const thr = (cx, tTop) => { ctx.beginPath(); ctx.moveTo(MID[0], MID[1] + MIDR * .95); ctx.bezierCurveTo(MID[0], 570, cx, 570, cx, tTop); };
     items.forEach(([en, zh, col, t0], i) => {
-      const cx = x0 + cw / 2 + i * (cw + gap), k = kk(lt, t0, t0 + .4);
+      const cx = x0 + cw / 2 + i * (cw + gap), k = kk(lt, t0, t0 + .32);
       if (k < 1 && slotA > 0) {
-        ctx.save(); ctx.globalAlpha = slotA * (1 - k) * .55; ctx.setLineDash([10, 10]); ctx.lineWidth = 2; ctx.strokeStyle = rgba(col, .6); rrect(cx - cw / 2, cy - chH / 2, cw, chH, 34); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+        ctx.save(); ctx.globalAlpha = slotA * (1 - k) * .8; ctx.setLineDash([10, 10]); ctx.lineWidth = 2.5; ctx.strokeStyle = rgba(col, .75); rrect(cx - cw / 2, cy - chH / 2, cw, chH, 34); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = slotA * (1 - k) * .16; ctx.strokeStyle = rgba(col, .8); ctx.lineWidth = 2; thr(cx, cy - chH / 2); ctx.stroke(); ctx.restore();
       }
       if (k <= 0) return;
-      const sc = .6 + .4 * eback(k), a = clamp(k * 3), f = clamp((lt - t0) / .45);
+      const sc = .6 + .4 * eback(k), a = clamp(k * 3), f = clamp((lt - t0) / .4);
       ctx.save(); ctx.globalCompositeOperation = 'lighter';                    // thread of light from the model, drawn out as the chip pops
       ctx.globalAlpha = a * (.5 + .4 * f); ctx.strokeStyle = rgba(col, .95); ctx.lineWidth = 3; ctx.setLineDash([700 * eout(f), 2000]); thr(cx, cy - chH / 2 * sc); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(cx, cy, 230, rgba(col, 1).replace(/[\d.]+\)$/, 'A)'), a * .15 * (1 + .3 * Math.sin(lt * 3 + i))); ctx.restore();

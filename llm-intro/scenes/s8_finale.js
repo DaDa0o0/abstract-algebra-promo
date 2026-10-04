@@ -5,15 +5,16 @@ const R = mulberry(20260008);
 const CH = { x: 280, y: 225, w: 1360, h: 520 };                       // chat window
 const USER_TXT = 'What is a large language model?';
 const ANS = ['A', ' language', ' model', ' predicts', ' the', ' next', ' token', ',', ' one', ' at', ' a', ' time', ',', ' after', ' learning', ' from', ' trillions', ' of', ' words', '.'];
-const T_USER0 = .35, T_SEND = 1.45, T_ANS0 = 1.75, T_ANS_DT = .085;     // typing, send, answer streaming (local seconds)
-const T_PULL = 3.85, T_FADE = 3.95;                                  // camera starts pulling back / chat shrinks (beat 6); chat gone by T_FADE+.45, before the first card
+const T_USER0 = .3, T_USER_DT = .026, T_SEND = 1.25, T_ANS0 = 1.4, T_ANS_DT = .04;     // typing, send (beat 2), answer streaming (local seconds)
+const T_ANS_END = T_ANS0 + (ANS.length - 1) * T_ANS_DT;              // last token placed (2.16); the full answer then rests >= 1.5 s
+const T_PULL = 3.75, T_FADE = 3.75, T_FADE_D = .25;                    // camera starts pulling back (beat 6); the chat is fully gone at 4.0, BEFORE the first card exists
 const ROW1 = [['文字', 'TEXT'], ['词元', 'TOKENS'], ['向量', 'VECTORS'], ['注意力', 'ATTENTION'], ['预测', 'PREDICTION']].map((l, i) =>
-  ({ zh: l[0], en: l[1], cx: 300 + i * 330, cy: 410, w: 262, h: 280, s: 1.06, tc: 4.375 + i * .3125, t0: 4.05 + i * .04 }));
+  ({ zh: l[0], en: l[1], cx: 300 + i * 330, cy: 392, w: 262, h: 280, s: 1.06, tc: 4.12 + i * .15, t0: 4.02 + i * .05 }));
 const ROW2 = [['预训练', 'PRETRAINING'], ['微调', 'FINE-TUNING']].map((l, i) =>
-  ({ zh: l[0], en: l[1], cx: 665 + i * 590, cy: 775, w: 500, h: 190, s: 1, tc: 5.0 + i * .3125, t0: 4.3 + i * .1 }));
+  ({ zh: l[0], en: l[1], cx: 665 + i * 590, cy: 762, w: 500, h: 190, s: 1, tc: 4.55 + i * .15, t0: 4.2 + i * .1 }));
 const ALLC = [...ROW1, ...ROW2];
-const T_COL = 6.85, T_COL_D = .45, T_HIT = 7.5, T_TITLE = 7.5;             // collapse start / length, hit, title reveal
-const CX = 960, CY = 470;                                              // the final caret / title centre
+const T_COL = 7.05, T_COL_D = .4, T_HIT = 7.5, T_TITLE = 7.5;              // collapse start / length, hit, title reveal
+const CX = 960, CY = 470, HY = 604;                                              // the final caret / title centre
 
 const DUST = Array.from({ length: 150 }, () => ({ x: R() * W, y: R() * H, z: .15 + R() * .85, p: R() * TAU }));
 const LOSSN = Array.from({ length: 34 }, () => (R() - .5));
@@ -36,8 +37,8 @@ function mycaret(x, y, h, a = 1, col = PAL.gold, w = 0, blur = 18) {
   if (a <= 0) return; ctx.save(); ctx.globalAlpha = a * GA; ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = blur;
   ctx.fillRect(x, y - h / 2, w || Math.max(3, h * .09), h); ctx.restore();
 }
-function chevron(x, y, s, col, a) {
-  ctx.save(); ctx.globalAlpha = a * GA; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+function chevron(x, y, s, col, a, lw = 3) {
+  ctx.save(); ctx.globalAlpha = a * GA; ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(x - s * .5, y - s); ctx.lineTo(x + s * .5, y); ctx.lineTo(x - s * .5, y + s); ctx.stroke(); ctx.restore();
 }
 const lightAt = (lt, tc) => Math.exp(-Math.pow((lt - tc) / .27, 2)) + .3 * sstep(tc - .05, tc + .35, lt);
@@ -47,16 +48,17 @@ function layoutAnswer(size, x0, maxX, lineH, y0) {
   const out = []; let x = x0, y = y0;
   for (const raw of ANS) {
     let s = raw, w = measure(s, size, F_UI, 400);
-    if (x + w > maxX && x > x0) { x = x0; y += lineH; s = s.trimStart(); w = measure(s, size, F_UI, 400); }
+    const keep = raw === ' a' ? measure(' time', size, F_UI, 400) : 0;                // keep "a time" together on one line
+    if (x + w + keep > maxX && x > x0) { x = x0; y += lineH; s = s.trimStart(); w = measure(s, size, F_UI, 400); }
     else if (x === x0) { s = s.trimStart(); w = measure(s, size, F_UI, 400); }
     out.push({ s, x, y, w }); x += w;
   }
   return out;
 }
 function drawChat(lt) {
-  const op = .88 + .12 * eexpo(clamp(lt / .8)), e = eio(clamp((lt - T_PULL) / .65));
-  const s = op * lerp(1, .5, e), px = 960, py = lerp(485, 420, e);
-  GA = sstep(0, .4, lt) * (1 - sstep(T_FADE, T_FADE + .35, lt)); if (GA <= .004) { GA = 1; return; }
+  const op = .88 + .12 * eexpo(clamp(lt / .8)), e = eio(clamp((lt - T_PULL) / .8));
+  const s = op * lerp(1, .74, e), px = 960, py = lerp(485, 440, e);
+  GA = sstep(0, .4, lt) * (1 - sstep(T_FADE, T_FADE + T_FADE_D, lt)); if (GA <= .004) { GA = 1; return; }
   ctx.save(); ctx.translate(px, py); ctx.scale(s, s); ctx.translate(-960, -485);
   const { x: X, y: Y, w: Wd, h: Hh } = CH;
   // window
@@ -70,12 +72,12 @@ function drawChat(lt) {
       ctx.save(); rrect(X, Y, Wd, Hh, 30); ctx.clip(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .75 * sa * GA; ctx.fillStyle = g2; ctx.fillRect(sx - 260, Y - 1, 520, 4);
       ctx.globalAlpha = .12 * sa * GA; ctx.fillRect(sx - 260, Y - 1, 520, 90); ctx.restore(); } }
   // header
-  orb(X + 54, Y + 38, 40, .9); ctx.save(); ctx.globalAlpha = GA; ctx.strokeStyle = PAL.cyan; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(X + 54, Y + 38, 11, 0, TAU); ctx.stroke(); ctx.restore();
+  orb(X + 54, Y + 38, 30, .65); ctx.save(); ctx.globalAlpha = GA; ctx.strokeStyle = PAL.cyan; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(X + 54, Y + 38, 11, 0, TAU); ctx.stroke(); ctx.restore();
   tx('Assistant', X + 92, Y + 38, { font: F_UI, size: 30, weight: 600, color: '#cfe0ff', align: 'left' });
   ctx.save(); ctx.globalAlpha = .22 * GA; ctx.fillStyle = '#9fc4ff'; ctx.fillRect(X + 30, Y + 76, Wd - 60, 1.5); ctx.restore();
 
   // user message: typed in the input bar, then sent up into a bubble
-  const full = measure(USER_TXT, 36, F_UI, 400), n = Math.floor((lt - T_USER0) / .034), e2 = eio(clamp((lt - T_SEND) / .45));
+  const full = measure(USER_TXT, 36, F_UI, 400), n = Math.floor((lt - T_USER0) / T_USER_DT), e2 = eio(clamp((lt - T_SEND) / .45));
   const bl = X + Wd - 50 - 32 - full, tx0 = lerp(X + 84, bl, e2), ty = lerp(Y + Hh - 74, Y + 138, e2);
   const IBY = Y + Hh - 107, IBX = X + 40, IBW = Wd - 80;          // input bar
   const ibA = 1 - .65 * sstep(T_SEND + .1, T_SEND + .5, lt);
@@ -99,21 +101,19 @@ function drawChat(lt) {
   // assistant answer, token by token
   const aa = eout(clamp((lt - T_ANS0 + .15) / .4)), ay = Y + 256;
   if (aa > 0) {
-    orb(X + 78, ay + 8, 46, aa); ctx.save(); ctx.globalAlpha = aa * GA; ctx.strokeStyle = PAL.cyan; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(X + 78, ay + 8, 12, 0, TAU); ctx.stroke(); ctx.restore();
-    const L = layoutAnswer(46, X + 136, X + Wd - 60, 70, ay); let last = null, prev = null;
+    orb(X + 78, ay + 8, 32, .6 * aa); ctx.save(); ctx.globalAlpha = aa * GA; ctx.strokeStyle = PAL.cyan; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(X + 78, ay + 8, 12, 0, TAU); ctx.stroke(); ctx.restore();
+    const L = layoutAnswer(46, X + 136, X + Wd - 60, 70, ay); let last = null;
     L.forEach((t, i) => {
       const age = lt - (T_ANS0 + i * T_ANS_DT); if (age < 0) return;
-      const k = eout(clamp(age / .22)), kb = Math.max(sstep(0, .1, age), age > .1 ? 1 : 0), gA = 1 - sstep(.1, .45, age);   // base text reaches full alpha fast, gold glow lingers on top
+      const k = eout(clamp(age / .22)), kb = Math.max(sstep(0, .1, age), age > .1 ? 1 : 0), gA = 1 - sstep(.08, .3, age);   // base text reaches full alpha fast, gold glow lingers on top
       const o = { font: F_UI, size: 46, align: 'left', alpha: kb, color: '#f2f7ff' };
       tx(t.s, t.x, t.y + (1 - k) * 12, o);
-      if (gA > .01) tx(t.s, t.x, t.y + (1 - k) * 12, { ...o, color: PAL.gold, alpha: k * gA * .9, glow: PAL.gold, blur: 12 });
-      prev = last && last.t.y === t.y ? last.t : null; last = { t, age, prev };
+      if (gA > .01) tx(t.s, t.x, t.y + (1 - k) * 12, { ...o, color: PAL.gold, alpha: k * gA * .5, glow: PAL.gold, blur: 8 });
+      last = { t, age };
     });
-    if (last) {
-      const solid = last.age < .5 && lt < T_ANS0 + ANS.length * T_ANS_DT;
-      const on = solid || !(Math.floor((lt - T_ANS0) * 2.2) % 2);
-      const ce = last.t.x + last.t.w, cs = last.prev ? last.prev.x + last.prev.w : last.t.x;
-      mycaret(lerp(cs, ce, sstep(.03, .07, last.age)) + 5, last.t.y, 52, on ? 1 : 0);
+    if (last && lt >= T_ANS_END + .1) {                                  // caret only after the stream ends (a caret hopping token to token ghosts under motion blur)
+      const t1 = lt - (T_ANS_END + .1);
+      mycaret(last.t.x + last.t.w + 5, last.t.y, 52, Math.floor(t1 * 2.2) % 2 ? 0 : 1);
     }
   }
   ctx.restore(); GA = 1;
@@ -151,7 +151,7 @@ function icAttention(lit, lt) {
     const x0 = xs[a], x1 = xs[b], ch = Math.abs(x0 - x1) * .62 + 8;
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = GA * (.3 + w * 1.7);
     ctx.strokeStyle = w > .25 ? PAL.cyan : w > .15 ? PAL.violet : PAL.blue; ctx.lineWidth = 1.5 + w * 8;
-    ctx.beginPath(); ctx.moveTo(x0, by - 8); ctx.quadraticCurveTo((x0 + x1) / 2, by - 8 - ch * 2, x1, by - 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0, by - 8); ctx.quadraticCurveTo((x0 + x1) / 2, by - 8 - ch * 1.6, x1, by - 8); ctx.stroke();
   }
   ctx.restore();
   xs.forEach((x, i) => orb(x, by, i === 4 ? 22 : (i === 2 || i === 3 || i === 1) ? 17 : 13, i === 4 ? 1 : .8, i === 4 ? 'rgba(240,248,255,A)' : 'rgba(120,200,255,A)'));
@@ -190,11 +190,12 @@ function cardFrame(c, lit, gold = 0) {
   if (gl > .03) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .1 * gl * GA; rrect(-c.w / 2, -c.h / 2, c.w, c.h, 24); ctx.fillStyle = PAL.cyan; ctx.fill(); ctx.restore(); }
 }
 const hw = c => c.w * c.s / 2, hh = c => c.h * c.s / 2;                 // half extents on screen
-const GOLD_A = 5.6, GOLD_B = 6.25, WRONG_B = T_COL;                      // "looks like understanding" gold halo, then the "can still be wrong" coral beat
+const GOLD_A = 4.65, GOLD_OUT = 5.6, WRONG_A = 5.7;                       // gold halo + chip (full 4.85-5.6), then the coral "can still be wrong" beat (full 5.85-7.05 = 1.2 s)
 function drawCards(lt) {
-  const cu = eio(clamp((lt - T_COL) / T_COL_D)), vis = 1 - sstep(.12, .45, cu);
+  const cu = eio(clamp((lt - T_COL - .05) / (T_COL_D - .05))), vis = 1 - sstep(.12, .45, cu);   // cards start shrinking .05 s after the text has gone
+  const tf = 1 - sstep(T_COL, T_COL + .1, lt);                         // text, icons and connectors are gone within the first .1 s of the collapse (no smeared glyphs)
   if (vis <= .003) return;
-  const lin = 1 - sstep(0, .25, cu);                                  // connectors vanish first
+  const lin = tf;
   // connectors, chain
   const ap0 = eout(clamp((lt - 4.2) / .5));
   for (let i = 0; i < 4; i++) {
@@ -202,16 +203,28 @@ function drawCards(lt) {
     GA = ap0 * lin; ctx.save(); ctx.globalAlpha = GA * (.35 + .5 * Math.min(1, lit)); ctx.strokeStyle = 'rgba(150,215,255,1)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.cx + hw(a) + 6, y); ctx.lineTo(b.cx - hw(b) - 6, y); ctx.stroke(); ctx.restore();
     chevron(x + 8, y, 9, PAL.cyan, .4 + .6 * Math.min(1, lit));
   }
-  // heading between the rows: how the model gets its abilities (centred on the screen axis)
-  const hg = eout(clamp((lt - 4.5) / .6)) * lin, hy = 622;
-  GA = 1; ctx.save(); ctx.globalAlpha = hg * .6; ctx.strokeStyle = PAL.violet; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(CX - 330, hy); ctx.lineTo(CX - 215, hy); ctx.moveTo(CX + 215, hy); ctx.lineTo(CX + 330, hy); ctx.stroke(); ctx.restore();
+  // heading between the rows: how the model gets its abilities (centred on the screen axis), linked down to the training cards and up to the chain
+  const hg = eout(clamp((lt - 4.3) / .5)) * lin, hy = HY;
+  GA = 1; ctx.save(); ctx.globalAlpha = hg * .65; ctx.strokeStyle = PAL.violet; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(CX - 330, hy); ctx.lineTo(CX - 215, hy); ctx.moveTo(CX + 215, hy); ctx.lineTo(CX + 330, hy);
+  for (const rc of ROW2) { const ry = rc.cy - hh(rc) - 10; ctx.moveTo(rc.cx, hy); ctx.lineTo(rc.cx, ry); ctx.moveTo(rc.cx - 9, ry - 11); ctx.lineTo(rc.cx, ry); ctx.lineTo(rc.cx + 9, ry - 11); }
+  const uy = ROW1[2].cy + hh(ROW1[2]) + 12;                           // upward arrow: training is what shapes the model above
+  ctx.moveTo(CX, hy - 26); ctx.lineTo(CX, uy); ctx.moveTo(CX - 9, uy + 11); ctx.lineTo(CX, uy); ctx.lineTo(CX + 9, uy + 11);
+  ctx.stroke(); ctx.restore();
   tx('训练 · how it learns', CX, hy, { font: F_UI, size: 32, weight: 600, color: '#f1ecff', alpha: hg });
-  // row 2 arrow
-  const a2 = eout(clamp((lt - 4.7) / .5)); GA = a2 * lin; chevron(CX + 6, ROW2[0].cy, 11, PAL.cyan, .5 + .5 * Math.min(1, lightAt(lt, 5.15)));
+  // row 2 arrow: pretraining -> fine-tuning
+  const a2 = eout(clamp((lt - 4.45) / .4)); GA = a2 * lin; chevron(CX + 6, ROW2[0].cy, 17, PAL.cyan, .75 + .25 * Math.min(1, lightAt(lt, ROW2[0].tc + .1)), 4);
   // cards
-  const gold = sstep(GOLD_A - .1, GOLD_A + .15, lt) * (1 - sstep(GOLD_B, GOLD_B + .2, lt));                      // gold halo on Prediction: the answer that looks like understanding
-  const wrong = sstep(GOLD_B - .05, GOLD_B + .2, lt) * (1 - sstep(WRONG_B - .08, WRONG_B, lt));                // steady coral outline + '?': it can still be wrong
+  const gold = sstep(GOLD_A, GOLD_A + .2, lt) * (1 - sstep(GOLD_OUT, GOLD_OUT + .2, lt));                      // gold halo on Prediction: the answer that looks like understanding
+  const goldChip = sstep(GOLD_A + .1, GOLD_A + .22, lt) * (1 - sstep(GOLD_OUT, GOLD_OUT + .1, lt));            // its label leaves first, then the coral label comes in (never two labels at once)
+  const wrong = sstep(WRONG_A, WRONG_A + .15, lt) * (1 - sstep(T_COL, T_COL + .08, lt));                       // steady coral outline + '?': it can still be wrong
+  const wrongChip = sstep(WRONG_A + .12, WRONG_A + .24, lt) * (1 - sstep(T_COL, T_COL + .08, lt));
+  const chipBox = (a, zh, en, col, fill, txc) => {                      // two-line label under the Prediction card
+    const cy2 = ROW1[4].h / 2 + 64, cw = 350;
+    gls(-cw / 2, cy2 - 38, cw, 76, { r: 26, fill, stroke: rgba(col, .85), lw: 2, glow: rgba(col, .4), blur: 14, alpha: a });
+    tx(zh, 0, cy2 - 12, { font: F_UI, size: 30, weight: 700, color: txc, alpha: a });
+    tx(en, 0, cy2 + 19, { font: F_UI, size: 22, weight: 500, color: txc, alpha: a });
+  };
   ALLC.forEach((c, i) => {
     const k = eout(clamp((lt - c.t0) / .5)); if (k <= 0) return;
     const lit = lightAt(lt, c.tc), sc = lerp(.78, 1, k) * lerp(1, .04, cu) * (1 + .018 * Math.min(1, lit)) * c.s;
@@ -219,7 +232,7 @@ function drawCards(lt) {
     ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
     if (i === 4 && gold > .01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = GA; softGlow(0, 0, 300, 255, 205, 110, .3 * gold); ctx.restore(); }
     cardFrame(c, lit, i === 4 ? gold : 0);
-    GA = k * vis * (1 - sstep(0, .2, cu));                            // icons + labels fade first so no smeared glyphs fly in
+    GA = k * vis * tf;                                               // icons + labels are gone within .1 s so no smeared glyphs fly in
     if (GA > .003) {
       if (i < 5) {
         ctx.save(); ctx.translate(0, -55); ICONS[i](lit, lt); ctx.restore();
@@ -238,15 +251,14 @@ function drawCards(lt) {
       const bx = c.w / 2 - 6, by = -c.h / 2 - 8;
       ctx.save(); ctx.globalAlpha = wrong * GA; ctx.beginPath(); ctx.arc(bx, by, 50, 0, TAU); ctx.fillStyle = 'rgba(40,10,22,.88)'; ctx.fill(); ctx.strokeStyle = PAL.coral; ctx.lineWidth = 3; ctx.shadowColor = PAL.coral; ctx.shadowBlur = 16; ctx.stroke(); ctx.restore();
       tx('?', bx, by + 3, { font: F_UI, size: 80, weight: 700, color: PAL.coral, glow: PAL.coral, blur: 14, alpha: wrong * pu });
-      const cy2 = c.h / 2 + 52, cw = 350;
-      gls(-cw / 2, cy2 - 28, cw, 56, { r: 28, fill: 'rgba(60,14,28,.8)', stroke: rgba(PAL.coral, .8), lw: 2, glow: rgba(PAL.coral, .4), blur: 14, alpha: wrong });
-      tx('可能出错 · can be wrong', 0, cy2 + 1, { font: F_UI, size: 26, weight: 600, color: '#ffd9de', alpha: wrong });
+      if (wrongChip > .01) chipBox(wrongChip, '可能出错', 'can still be wrong', PAL.coral, 'rgba(60,14,28,.82)', '#ffd9de');
     }
+    if (i === 4 && goldChip > .01 && GA > .01) chipBox(goldChip, '看似理解', 'looks like understanding', PAL.gold, 'rgba(52,38,10,.82)', '#fff1cf');
     ctx.restore();
   });
   GA = 1;
   // the signal
-  const s0 = ROW1[0].tc, so = sstep(s0 - .1, s0, lt) * (1 - sstep(ROW1[4].tc + .1, ROW1[4].tc + .3, lt)) * lin;
+  const s0 = ROW1[0].tc, so = sstep(s0 - .08, s0, lt) * (1 - sstep(ROW1[4].tc + .1, ROW1[4].tc + .3, lt)) * lin;
   if (so > .01) {
     const u = clamp((lt - s0) / (ROW1[4].tc - s0)), x = lerp(ROW1[0].cx, ROW1[4].cx, u), y = ROW1[0].cy - 55;
     const gapK = px => .3 + .7 * sstep(-6, 22, Math.min(...ROW1.map(c => Math.abs(px - c.cx) - hw(c))));   // dim while it crosses a card so icons stay legible
@@ -267,7 +279,7 @@ function drawCollapse(lt) {
   if (lt > T_COL - .02 && lt < T_HIT) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (const p of PART) {
-      const u = clamp((lt - T_COL - p.d * .6) / (T_COL_D + .05)); if (u <= 0) continue;
+      const u = clamp((lt - T_COL - p.d * .45) / T_COL_D); if (u <= 0) continue;
       const e = eio(u), sw = Math.sin(PI * e) * 70 * p.sw;
       const x = lerp(p.x, CX, e) + sw * (CY - p.y) / 260, y = lerp(p.y, CY + p.sw * 55, e) + sw * (p.x - CX) / 900;
       ctx.globalAlpha = sstep(0, .12, u) * (1 - sstep(.7, .97, u)) * .85; ctx.fillStyle = p.col;
@@ -284,7 +296,7 @@ function drawCollapse(lt) {
     ctx.beginPath(); ctx.arc(CX, CY, 20 + 290 * eout(clamp(h / .5)), 0, TAU); ctx.stroke(); ctx.restore();
   }
   // lonely caret: materialises as the particles arrive, blinks off once, then the title takes over
-  const ca = sstep(T_COL + .22, T_COL + .36, lt) * (1 - sstep(T_TITLE - .02, T_TITLE + .08, lt));
+  const ca = sstep(T_COL + .2, T_COL + .3, lt) * (1 - sstep(T_TITLE - .02, T_TITLE + .08, lt));
   GA = 1; if (ca > 0) mycaret(CX - 4, CY, 150, ca, PAL.gold, 8, 12);
 }
 function drawTitle(lt) {
@@ -298,24 +310,24 @@ function drawTitle(lt) {
   text('它如何工作 · 如何训练   /   HOW THEY WORK · HOW THEY LEARN', CX, CY + 232, { font: F_UI, size: 30, weight: 500, ls: 3, color: PAL.gold, alpha: ta });
   // echo of scene 0: the caret, now at the end of the title
   const L = titleLayout('大语言模型', CX, 190, 14), cxr = CX + L[0].total / 2 + 20, cr = sstep(T_TITLE + .5, T_TITLE + .6, lt);
-  if (cr > 0) caret(cxr, CY, 120, lt - (T_TITLE + .5), PAL.gold, cr);
+  if (cr > 0) caret(cxr, CY, 120, lt - (T_TITLE + .5) + .45, PAL.gold, cr);
   flare(CX, CY, .85 * Math.exp(-Math.max(0, lt - T_TITLE - .1) * 3.2) * sstep(T_TITLE - .1, T_TITLE + .3, lt), 1000);
 }
 
 // ---------------------------------------------------------------- the scene
 const sfx = [[0, 'whoosh', { dur: .7 }]];
-for (let i = 0; i < USER_TXT.length; i += 3) sfx.push([T_USER0 + i * .034, 'type']);
+for (let i = 0; i < USER_TXT.length; i += 3) sfx.push([T_USER0 + i * T_USER_DT, 'type']);
 sfx.push([T_SEND, 'swish', { pitch: 1.2 }]);
 ANS.forEach((_, i) => { if (i % 3 === 0) sfx.push([T_ANS0 + i * T_ANS_DT, 'type']); });
-sfx.push([T_ANS0 + ANS.length * T_ANS_DT + .05, 'chime', { midi: 84 }], [T_PULL + .05, 'whoosh', { dur: 1.2 }]);
+sfx.push([T_ANS_END + .08, 'chime', { midi: 84 }], [T_PULL + .05, 'whoosh', { dur: 1.2 }]);
 sfx.push([ROW1[0].t0 + .1, 'pop']);
 ROW1.forEach((c, i) => sfx.push([c.tc, 'ping', { midi: 72 + i * 2 }]));
-sfx.push([ROW1[0].tc, 'swish', { pitch: .9 }], [GOLD_A, 'sparkle', { dur: .6 }], [ROW2[0].tc, 'ding', { midi: 79 }], [ROW2[1].tc, 'ding', { midi: 84 }], [GOLD_B + .05, 'down'],
+sfx.push([ROW1[0].tc, 'swish', { pitch: .9 }], [GOLD_A + .35, 'sparkle', { dur: .6 }], [ROW2[0].tc, 'ding', { midi: 79 }], [ROW2[1].tc, 'ding', { midi: 84 }], [WRONG_A + .05, 'down'],
   [6.2, 'riser', { dur: 1.3 }], [T_HIT, 'hit', { k: .7 }], [T_HIT + .3, 'swell', { dur: 2.2 }],
   [T_TITLE, 'shimmer'], [T_TITLE, 'chime', { midi: 79 }], [T_TITLE + .1, 'sparkle', { dur: 1.2 }], [9.375, 'thump']);
 
 scene({
-  id: 'finale', start: 20, len: 4, fi: .25, fo: .6, mb: 2,
+  id: 'finale', start: 20, len: 4, fi: .25, fo: .6, mb: 1,
   subs: [
     [.3, 2.4, '于是，你输入一句话', 'So you type a sentence'],
     [2.6, 4.7, '它一个词一个词地接下去——', 'and it continues, one word at a time —'],

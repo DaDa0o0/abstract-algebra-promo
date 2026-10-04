@@ -46,6 +46,7 @@ kicks.json there.
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import wave
@@ -65,7 +66,7 @@ NBARS = 24
 TOTAL = NBARS * BAR        # 60.0 s
 FADE_END = 59.8            # true silence from here on
 FADE_EXP = 1.6
-FADE_LEN = 1.6             # curved fade-out: starts at 58.2 s (gentle curve, exponent FADE_EXP), so the C add9 chord rings out instead of dropping
+FADE_LEN = .6              # curved fade-out guard: starts at 59.2 s (the chord itself is full until 58.8 s and releases on its own, bars 23)
 BED_GAIN = 1.4             # bed -> master
 SFX_GAIN = .75             # sfx bus -> master (about -2.5 dB under the old mix, so the score is never behind the effects)
 TARGET_LUFS = -14.0        # the wav is levelled to this before the mp3 two-pass loudnorm (which then only trims)
@@ -75,6 +76,7 @@ F32 = np.float32
 TAU = 2 * np.pi
 BUS = {k: np.zeros((2, N), F32) for k in ('mus', 'bass', 'pad', 'str', 'drm', 'sfx', 'hall', 'plate', 'room', 'sfxwet')}
 KICKS = []                 # (time, depth) -> sidechain of pad / strings / bass
+CUE_DUCKS = []              # (time, depth): the bed's 1.5-9 kHz band ducks briefly under the small UI cues so they stay readable
 DIPS = []                  # (time, length): short gap in the whole mix (bed + sfx) just before a big arrival
 HITS = []                  # (time, depth) -> small duck of the whole bed under big sfx
 KICK_LOG = []              # kick onset times (debug / verification)
@@ -250,10 +252,10 @@ def v_pluck(m, dur):
 
 
 @lru_cache(maxsize=None)
-def v_bass(m, dur):
+def v_bass(m, dur, cut=650):
     t = tv(dur + .15)
     f = midi(m)
-    s = (lp(saw(f, t), 650) * .8 + np.sin(TAU * f * t)) * env_s(len(t), .004, .1, dur) * np.exp(-t / (dur * 1.3 + .2))
+    s = (lp(saw(f, t), cut) * .8 + np.sin(TAU * f * t)) * env_s(len(t), .004, .1, dur) * np.exp(-t / (dur * 1.3 + .2))
     return s.astype(F32)
 
 
@@ -359,8 +361,8 @@ def i_subnote(t0, m, dur, gain=.2, att=.01, rel=.15):
     put(v_sub(m, tone_n(dur, rel))[:n] * env_s(n, att, rel, dur), t0, 'bass', gain * SUB_TRIM)
 
 
-def i_bassnote(t0, m, dur, gain=.1, pan=0.0):
-    put(v_bass(m, round(dur, 3)), t0, 'bass', gain, pan)
+def i_bassnote(t0, m, dur, gain=.1, pan=0.0, cut=650):
+    put(v_bass(m, round(dur, 3), cut), t0, 'bass', gain, pan)
 
 
 # ---- drums
@@ -541,10 +543,18 @@ def pads(b0, b1, gain=.03, att=.8, rel=.8, lift=0, hall=0.0, voic=None):
         pad(t0, [m + lift for m in v], t1 - t0, gain, att, rel, hall=hall)
 
 
-def strs(b0, b1, gain=.025, att=.9, rel=.8, low=False):
+def open_voic(name):
+    """pad voicing for the dense sections: the two lowest notes go up an octave (nothing between 110 and 260 Hz but the bass)."""
+    v = VOIC[name]
+    return [v[0] + 12, v[1] + 12, v[2], v[3]]
+
+
+def strs(b0, b1, gain=.025, att=.9, rel=.8, low=False, open_=False):
     for t0, t1, name in segments(b0, b1):
         v = VOIC[name]
         notes = [v[1] - 12, v[2], v[3]] if low else [v[0], v[1], v[2] + 12, v[3] + 12]      # low: no root (the sub and the bass own it)
+        if open_:
+            notes = [v[1], v[2], v[3], v[1] + 12, v[2] + 12] if low else [v[0] + 12, v[1] + 12, v[2] + 12, v[3] + 12]   # open: nothing below 260 Hz (the bass saw / cello / pad stack at 110-330 Hz)
         strpad(t0, notes, t1 - t0, gain, att, rel)
 
 
@@ -592,8 +602,8 @@ def score():
         i_subnote(t + .26, 33, .3, .2, att=.008, rel=.2)
     pad(0.0, [57, 64, 67, 72], 3.125, gain=.026, att=2.4, rel=.05, spread=.8, hall=.6)       # glass swell under the typing
     strpad(0.6, [45, 57, 64], 2.52, gain=.014, att=2.0, rel=.05)
-    motif(.9, MOT_Q, i_bell, tr=0, gain=.035, vel=.6, dec=1.3)                                # the question, in glass (late and quiet: the typing owns 0.5-2.2 s)
-    motif(.9, MOT_Q, i_felt, tr=0, gain=.045, vel=.45)
+    motif(tb(0, 2), MOT_Q[:4], i_bell, tr=0, gain=.035, vel=.6, dec=1.3)                      # the question, in glass, ON the beat grid (beat 2 = 1.25 s, with the heartbeat); its held 5th is the title bloom itself
+    motif(tb(0, 2), MOT_Q[:4], i_felt, tr=0, gain=.045, vel=.45)
     riser(3.125, 2.5, .055, f0=180, pw=3.2)                                                   # steeper; the last 100 ms must sit under the bloom
     DIPS.append((3.125, .08))                                                                 # 80 ms gap in the WHOLE mix (bed + sfx), released exactly at the hit
     for k in range(3):                                                                        # soft data sparkle, after the typing, running up into the riser
@@ -601,12 +611,12 @@ def score():
     # title bloom, F major 7 at 3.125 (bar 1 beat 2)
     t = tb(1, 1)
     kick(t, .42, duck=.2)                                                                      # the title chord must not start under a duck
-    i_subnote(t, 29, 1.6, .28, rel=.4)
-    pad(t, VOIC['F'], BAR - .625 + .1, gain=.07, att=.05, rel=1.2, hall=.0)
-    strpad(t, [41, 57, 64, 72, 76], 1.9, gain=.04, att=.25, rel=1.2)
+    i_subnote(t, 29, 1.6, .20, rel=.4)
+    pad(t, VOIC['F'], BAR - .625 + .1, gain=.055, att=.05, rel=1.2, hall=.0)
+    strpad(t, [41, 57, 64, 72, 76], 1.9, gain=.034, att=.25, rel=1.2)
     for k, m in enumerate([65, 69, 72, 76, 81, 84, 88]):
-        i_bell(t + .04 + k * .085, m, gain=.057, pan=(k - 3) * .25, dec=2.2)
-    crash(t, .055, 2.2)
+        i_bell(t + .04 + k * .085, m, gain=.045, pan=(k - 3) * .25, dec=2.2)
+    crash(t, .04, 2.2)
 
     # ------------------------------------------------ bars 2-5 (5-15 s): curious groove
     for b in range(2, 6):
@@ -619,17 +629,17 @@ def score():
         kick(tb(b), .2, .35)
         kick(tb(b, 2), .18, .3)
         for k in range(8):
-            shaker(tb(b) + k * EIGHTH, .022 if k % 2 else .026, pan=-.25 + .5 * (k % 2))
+            shaker(tb(b) + k * EIGHTH, .036 if k % 2 else .042, pan=-.25 + .5 * (k % 2))        # air: hats / shaker up about 4 dB (the groove had no top end)
             if k % 2:
-                hat(tb(b) + k * EIGHTH, .022, 0)
+                hat(tb(b) + k * EIGHTH, .036, 0)
     for b in range(2, 6):
         arp_bar(b, EIGHTH, [P8A, P8B][(b - 2) % 2], i_marimba, 60, 81, .036 * (1.8 if b == 4 else 1))
-    for b in (4, 5):
-        arp_bar(b, EIGHTH, [None, 1, None, 3, None, 2, None, 4], i_kalimba, 72, 93, .025 * (1.6 if b == 4 else 1))
+    for b in range(2, 6):                                                                  # glass top line an octave over the marimba, in every groove bar
+        arp_bar(b, EIGHTH, [None, 1, None, 3, None, 2, None, 4], i_kalimba, 72, 93, .025 * (1.6 if b == 4 else 1.15))
     motif(tb(3), MOT_Q, i_kalimba, gain=.052, vel=.85, pan=.15, dec=.9)
     motif(tb(5), MOT_QG, i_marimba, tr=12, gain=.05, vel=.85, pan=-.2, dec=.4)
     for b in (3, 5):
-        i_bell(tb(b, 3), 88, gain=.016, pan=.4, dec=1.6)
+        i_bell(tb(b, 3), 88, gain=.024, pan=.4, dec=1.6)
 
     # ------------------------------------------------ bars 6-8 (15-22.5): building
     for b in range(6, 9):
@@ -693,19 +703,19 @@ def score():
     motif(tb(10), MOT_QG, i_kalimba, tr=0, gain=.034, vel=.8, pan=.2, dec=.9)
 
     # ------------------------------------------------ bars 11-13 (27.5-35): dark and urgent
-    pads(11, 14, gain=.024, att=.9, rel=.9)
-    strs(11, 14, gain=.032, att=.6, rel=.8, low=True)
+    pads(11, 14, gain=.024, att=.9, rel=.9, voic=open_voic)
+    strs(11, 14, gain=.032, att=.6, rel=.8, low=True, open_=True)
     for b in range(11, 14):
         r = ROOT[chord_at(tb(b))]
-        i_subnote(tb(b), r, BAR - .05, .145, rel=.1)
+        i_subnote(tb(b), r, BAR - .05, .125, rel=.1)
         for k in range(8):
             t = tb(b) + k * EIGHTH
-            i_bassnote(t, r + (24 if k % 4 == 3 else 12), EIGHTH * .8, .12 if k % 2 == 0 else .085)   # an octave over the sub: no doubling
+            i_bassnote(t, r + (24 if k % 4 == 3 else 12), EIGHTH * .8, .12 if k % 2 == 0 else .085, cut=450)   # an octave over the sub: no doubling
         rr = r + 24                                                  # cello an octave above the bass saw (they stacked on 110 Hz)
         osc = (0, 0, 7, 0, 0, 7, 10, 7)
         for k in range(8):
             t = tb(b) + k * EIGHTH
-            put(v_cello(rr + osc[k], round(EIGHTH * .8, 3)), t, 'mus', .095 if k % 2 == 0 else .068, pan=-.15 if k % 2 else .15, hall=.2)
+            put(v_cello(rr + osc[k], round(EIGHTH * .8, 3)), t, 'mus', .076 if k % 2 == 0 else .055, pan=-.15 if k % 2 else .15, hall=.2)
         for k in range(16):
             rg = R(21, b, k)
             if rg.random() < .72:
@@ -730,8 +740,8 @@ def score():
     i_subnote(t, 33, 1.8, .24, rel=.3)
     crash(t, .08, 2.4)
     taiko(t, .24, -.2)
-    pads(14, 17, gain=.06, att=.15, rel=.8)
-    strs(14, 17, gain=.05, att=.2, rel=.8)
+    pads(14, 17, gain=.06, att=.15, rel=.8, voic=open_voic)
+    strs(14, 17, gain=.05, att=.2, rel=.8, open_=True)
     for b in range(14, 17):
         r = ROOT[chord_at(tb(b))]
         for k in range(4):
@@ -745,10 +755,10 @@ def score():
         hat(tb(b, 3.5), .03, 1)
         for k in range(8):
             shaker(tb(b) + k * EIGHTH, .016, pan=-.3)
-        i_subnote(tb(b), r, BAR - .05, .17, rel=.1)
+        i_subnote(tb(b), r, BAR - .05, .145, rel=.1)
         bl = (0, 0, 12, 0, 0, 12, 7, 12)
         for k in range(8):
-            i_bassnote(tb(b) + k * EIGHTH, r + 12 + bl[k], EIGHTH * .85, .17 if k % 2 == 0 else .133)
+            i_bassnote(tb(b) + k * EIGHTH, r + 12 + bl[k], EIGHTH * .85, .17 if k % 2 == 0 else .133, cut=450)
         for k in range(8):
             t = tb(b) + k * EIGHTH
             put(v_cello(r + 24 + (0, 0, 7, 0, 0, 7, 12, 7)[k], round(EIGHTH * .8, 3)), t, 'mus', .028, pan=.2 if k % 2 else -.2, hall=.3)
@@ -846,10 +856,10 @@ def score():
     # bar 23: the long tonic chord, rings and fades
     t = tb(23)
     kick(t, .42, .7)
-    i_subnote(t, 36, 2.2, .3, rel=1.0)
+    i_subnote(t, 36, 1.3, .3, rel=1.0)
     crash(t, .045, 2.2)
-    pad(t, [48, 55, 60, 64, 71, 74], 2.2, gain=.04, att=.1, rel=1.7, spread=.9)
-    strpad(t, [48, 60, 67, 76, 79, 83], 2.2, gain=.03, att=.2, rel=1.7)
+    pad(t, [48, 55, 60, 64, 71, 74], 1.3, gain=.04, att=.1, rel=1.0, spread=.9)         # full until 58.8 s, then its own 1 s release (dies at 59.8 s); the felt piano and bells ring on top
+    strpad(t, [48, 60, 67, 76, 79, 83], 1.3, gain=.03, att=.2, rel=1.0)
     for k, m in enumerate([48, 55, 64, 71, 74, 79]):
         i_felt(t + k * .03, m, gain=.07, pan=(k - 2.5) * .15, vel=.7)
     for k, m in enumerate([88, 83, 79, 76, 91, 86, 83, 95]):
@@ -919,6 +929,23 @@ T_POP = 10 ** (8.5 / 20)
 T_PING = 10 ** (3 / 20)
 T_SWELL = 10 ** (5 / 20)          # the swell sits on top of the pad: it needs a real tonal body
 T_LOUD = 1 / SFX_GAIN        # hit / boom / stamp / glitch keep their old absolute level
+
+
+SMALL = ('type', 'chip', 'tick', 'blip', 'step', 'count')
+# trim of the small UI cues (dB) per section of the bed: the dense sections (dark 27.5-35, peak 35-42.5, finale 50-57.5) bury a -3 dB tick
+SMALL_TRIM = [(0, 0.0), (22.5, 1.5), (27.5, 3.0), (35, 5.0), (42.5, 1.0), (50, 5.0), (57.5, 3.0)]
+
+
+PRETTY = ('ping', 'ding', 'chime', 'sparkle', 'whoosh', 'swish', 'pop', 'down')
+FINALE_PRETTY = (50.0, 57.4, 10 ** (-3.5 / 20))     # the finale's glass pings / dings / whooshes land on a bed that is already at the peak level: -3.5 dB so the mix never beats bars 14-16
+
+
+def small_trim(t):
+    db = 0.0
+    for t0, d in SMALL_TRIM:
+        if t >= t0:
+            db = d
+    return 10 ** (db / 20)
 
 
 def fx_type(t, g=1.0, **o):
@@ -1002,19 +1029,28 @@ def fx_swish(t, pitch=1.0, g=1.0, **o):
     put(whoosh_sig(.34, 900 * pitch, 7000 * pitch, seed=3), t - .06, 'sfx', .26 * g, .3, wet=.3)
 
 
+def root_hz(t, lo=40.0):
+    """root of the chord sounding at t (+10 ms), an octave up while it is under `lo` Hz: the low end of hit / boom / stamp is
+    tuned to it (an untuned 46 / 52 Hz pair beat 2-8 Hz against the F sub of the title bloom)."""
+    f = midi(ROOT[chord_at(t + .01)])
+    while f < lo:
+        f *= 2
+    return round(float(f), 1)
+
+
 @lru_cache(maxsize=None)
-def w_hit():
+def w_hit(f0=46.0):
     t = tv(1.4)
-    f = 46 + 70 * np.exp(-t / .03)
+    f = f0 + 70 * np.exp(-t / .03)
     s = np.tanh(2 * np.sin(TAU * np.cumsum(f) / SR)) * np.exp(-t / .3)
-    s += .35 * np.sin(TAU * 52 * t) * np.exp(-t / .6)
+    s += .35 * np.sin(TAU * f0 * t) * np.exp(-t / .6)
     s += .5 * hp(nz(len(t), 44), 1800) * np.exp(-t / .03) + .3 * lp(nz(len(t), 45), 900) * np.exp(-t / .12)
     return s.astype(F32)
 
 
 def fx_hit(t, k=.6, g=1.0, **o):
     k = float(np.clip(k, 0, 1.2))
-    put(w_hit(), t, 'sfx', .62 * T_LOUD * k * g, wet=.35, fade=.12)
+    put(w_hit(root_hz(t)), t, 'sfx', .62 * T_LOUD * k * g, wet=.35, fade=.12)
     tt = tv(1.2)
     met = sum(np.sin(TAU * f * tt) * np.exp(-tt / d) for f, d in ((1390, .3), (2310, .2), (3710, .12)))
     put(met, t, 'sfx', .04 * T_LOUD * k * g, wet=.6, fade=.1)
@@ -1024,7 +1060,8 @@ def fx_hit(t, k=.6, g=1.0, **o):
 
 
 def fx_boom(t, g=1.0, **o):
-    s, tt = sweep_sine(70, 38, 2.6)
+    f0 = root_hz(t, 36.0)
+    s, tt = sweep_sine(1.7 * f0, f0, 2.6)
     put(np.tanh(1.6 * s) * np.exp(-tt / .8), t, 'sfx', .62 * T_LOUD * g, wet=.4, fade=.2)
     put(lp(nz(len(tt), 46), 400) * np.exp(-tt / .4), t, 'sfx', .15 * T_LOUD * g, wet=.6, fade=.2)
     HITS.append((t, .35))
@@ -1133,13 +1170,13 @@ def fx_scan(t, dur=1.5, g=1.0, **o):
 
 
 @lru_cache(maxsize=None)
-def w_stamp():
-    s, tt = sweep_sine(110, 48, .5)
+def w_stamp(f0=48.0):
+    s, tt = sweep_sine(2.3 * f0, f0, .5)
     return (s * np.exp(-tt / .12) + bp(nz(len(tt), 52), 200, 900) * np.exp(-tt / .05) + .6 * hp(nz(len(tt), 53), 2000) * np.exp(-tt / .018)).astype(F32)
 
 
 def fx_stamp(t, g=1.0, **o):
-    put(w_stamp(), t, 'sfx', .42 * T_LOUD * g, .1, wet=.3, fade=.08)
+    put(w_stamp(root_hz(t)), t, 'sfx', .42 * T_LOUD * g, .1, wet=.3, fade=.08)
     HITS.append((t, .25))
 
 
@@ -1229,6 +1266,11 @@ def place_cues(cues):
                     print(f'warning: bad gain={v!r} in {name} cue at {t}; ignored', file=sys.stderr)
                     continue
             o[k] = v
+        if name in SMALL:
+            o['g'] = o.get('g', 1.0) * small_trim(t)
+            CUE_DUCKS.append((t, 1.0))
+        elif name in PRETTY and FINALE_PRETTY[0] <= t < FINALE_PRETTY[1]:
+            o['g'] = o.get('g', 1.0) * FINALE_PRETTY[2]
         try:
             FX[name](t, **o)
             placed += 1
@@ -1276,7 +1318,7 @@ def sweep_lp(x, pts, k=9):
     return out
 
 
-PAD_CUT = [(0, 600), (2.5, 1100), (3.1, 1600), (3.2, 5500), (5, 2600), (14, 2800), (15, 1800), (22.4, 9000), (22.6, 7000), (27.4, 6000),
+PAD_CUT = [(0, 600), (2.5, 1100), (3.1, 1600), (3.2, 5500), (5, 4200), (14, 4200), (15, 1800), (22.4, 9000), (22.6, 7000), (27.4, 6000),
            (27.5, 1300), (34, 2200), (35, 4500), (42.4, 7000), (42.5, 2400), (49.9, 3800), (50, 1500), (52.4, 5500), (52.5, 6500), (57.4, 6500), (57.5, 5000), (60, 3000), (64, 3000)]
 STR_CUT = [(0, 1500), (3.1, 2500), (3.2, 6500), (5, 3500), (15, 2200), (22.4, 9000), (27.4, 6500), (27.5, 1800), (35, 6000), (42.5, 3000), (50, 2000), (52.5, 7000), (57.5, 6000), (64, 3500)]
 
@@ -1316,6 +1358,33 @@ def dip_gain(depth=.25, att=.008, rel=.006):
     return g
 
 
+CUE_DUCK_DEPTH = .4
+SFX_ARC = .5               # the sfx follow the loudness arc at this fraction (in dB): the cue sheet is dense in the quiet sections too, and a flat sfx bus would flatten the arc of the whole mix
+
+
+def arc_gain():
+    """loudness arc: a smooth gain curve (dB breakpoints, linear in between, 25 ms smoothing so steps are never clicks) applied to the
+    bed AND the sfx before the master.  The master then levels the whole piece to -14 LUFS, so only the differences matter."""
+    pts = np.array(ARC, float)
+    g = 10 ** (np.interp(np.arange(N) / SR, pts[:, 0], pts[:, 1]) / 20)
+    return uniform_filter1d(g, int(.025 * SR)).astype(F32)
+
+
+# calibrated against the real cue sheet (K-weighted momentary loudness, bed median per bar): bars 0-1 -11 dB re the peak, groove -6, build -9 / -7 / -4.7,
+# aha -5.2, dark -7.7 / -7.7 / -7.2, PEAK 0, release -7.5 / -7.5 / -6.5, finale -2.5 / -1.4 / -1.4; bar 1 has its own step down at the title bloom (3.125 s)
+ARC = [
+       (0, -3.18), (2.499, -3.18), (2.5, -0.18), (3.035, 2.82), (3.045, 2.82), (3.125, -6.87),
+       (4.999, -6.87), (5.001, -0.2), (7.499, -0.2), (7.501, -1.71), (9.999, -1.71), (10.001, -0.43),
+       (12.499, -0.43), (12.501, -1.16), (14.999, -1.16), (15.001, -3.3), (17.499, -3.3), (17.501, -3.14),
+       (19.999, -3.14), (20.001, -0.56), (22.499, -0.56), (22.501, -2.15), (24.999, -2.15), (25.001, -1.35),
+       (27.499, -1.35), (27.501, -2.85), (29.999, -2.85), (30.001, -2.67), (32.499, -2.67), (32.501, -2.29),
+       (34.999, -2.29), (35.001, -0.2), (37.499, -0.2), (37.501, -0.34), (39.999, -0.34), (40.001, 0.54),
+       (42.499, 0.54), (42.501, -2.46), (44.999, -2.46), (45.001, -4.24), (47.499, -4.24), (47.501, -3.58),
+       (49.999, -3.58), (50.001, 0.99), (52.499, 0.99), (52.501, 0.7), (54.999, 0.7), (55.001, -0.5),
+       (57.499, -0.5), (57.501, -2.92), (59.999, -2.92),
+       ]
+
+
 def render_mix():
     HALL = make_ir([((0, 300), 1.3), ((300, 1500), 1.1), ((1500, 5000), .75), ((5000, 16000), .35)], 3.4, .025, 1)
     PLATE = make_ir([((0, 500), .55), ((500, 4000), .6), ((4000, 16000), .45)], 1.7, .008, 2)
@@ -1333,7 +1402,11 @@ def render_mix():
     bed = mus * MUS_GAIN + BUS['bass'] * (1 - .55 * kd) + pad_f * (1 - .5 * kd) + str_f * (1 - .4 * kd) + wet + drm
     hd = duck_curve(HITS, .3, 1.0)
     bed = bed * (1 - hd)
-    return bed * dg, (BUS['sfx'] + wet_sfx) * dg
+    if CUE_DUCKS:                                                    # the small cues sit in 1.5-9 kHz: duck only that band of the bed (about -4 dB, 70 ms) under them
+        cd = duck_curve(CUE_DUCKS, .07, .35) * CUE_DUCK_DEPTH
+        bed = bed - bp_st(bed, 1500, 9000, 1) * cd
+    arc = arc_gain()
+    return bed * dg * arc, (BUS['sfx'] + wet_sfx) * dg * arc ** SFX_ARC
 
 
 def limiter(x, ceil_db=CEIL_DB, look=.004, rel=.09):
@@ -1372,8 +1445,42 @@ def master(bed, sfx):
     return mix[:, :int(TOTAL * SR)]
 
 
+def k_weight(x):
+    """ITU-R BS.1770 K-weighting (high shelf + RLB high-pass) of a (2, n) signal."""
+    A = 10 ** (3.999843853973347 / 40)
+    w = 2 * np.pi * 1681.974450955533 / SR
+    al = np.sin(w) / (2 * 0.7071752369554196)
+    c, q = np.cos(w), 2 * np.sqrt(A) * al
+    sh = ([A * ((A + 1) + (A - 1) * c + q), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - q)],
+          [(A + 1) - (A - 1) * c + q, 2 * ((A - 1) - (A + 1) * c), (A + 1) - (A - 1) * c - q])
+    K = np.tan(np.pi * 38.13547087602444 / SR)
+    d = 1 + K / 0.5003270373238773 + K * K
+    hpf = ([1, -2, 1], [d, 2 * (K * K - 1), 1 - K / 0.5003270373238773 + K * K])
+    y = lfilter(sh[0], sh[1], x.astype(np.float64), axis=1)
+    return lfilter(hpf[0], hpf[1], y, axis=1)
+
+
+def lufs_np(mix):
+    """integrated loudness, BS.1770-4 with both gates (400 ms blocks, 75 % overlap): numpy twin of ffmpeg's ebur128 / loudnorm, used when
+    ffmpeg is missing (agrees with it to about 0.1 LU)."""
+    z = k_weight(mix) ** 2
+    L, h = int(.4 * SR), int(.1 * SR)
+    cs = np.concatenate([np.zeros((2, 1)), np.cumsum(z, axis=1)], axis=1)
+    st = np.arange(0, z.shape[1] - L + 1, h)
+    p = (cs[:, st + L] - cs[:, st]).sum(axis=0) / L
+    lk = -.691 + 10 * np.log10(p + 1e-12)
+    ok = lk > -70
+    if not ok.any():
+        return -70.0
+    rel = -.691 + 10 * np.log10(p[ok].mean()) - 10
+    ok = lk > max(-70, rel)
+    return float(-.691 + 10 * np.log10(p[ok].mean() + 1e-12))
+
+
 def lufs(mix, tmp):
-    """integrated loudness (ffmpeg loudnorm measurement of a temporary wav)."""
+    """integrated loudness (ffmpeg loudnorm measurement of a temporary wav; the numpy twin when ffmpeg is missing)."""
+    if not shutil.which('ffmpeg'):
+        return lufs_np(mix)
     write_wav(tmp, mix)
     try:
         r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', tmp, '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json',
@@ -1411,6 +1518,8 @@ def write_wav(path, mix):
 
 
 def encode(wav, mp3):
+    if not shutil.which('ffmpeg'):
+        raise FileNotFoundError('ffmpeg')
     LN = 'loudnorm=I=-14:TP=-2:LRA=11'
     r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', wav, '-af', LN + ':print_format=json', '-f', 'null', '-'], capture_output=True, text=True).stderr
     m = json.loads(r[r.rindex('{'):r.rindex('}') + 1])
@@ -1428,6 +1537,9 @@ def main():
     ap.add_argument('--out-dir', default=here, help='directory for music.wav and music.mp3')
     a = ap.parse_args()
     os.makedirs(a.out_dir, exist_ok=True)
+    if not shutil.which('ffmpeg'):
+        print('ERROR: ffmpeg was not found on PATH.  It is needed for the mp3 encode (install ffmpeg, e.g. apt install ffmpeg); '
+              'continuing: music.wav will still be rendered and levelled with the built-in loudness meter, but music.mp3 will not be written.', file=sys.stderr)
 
     score()
     cues = []
@@ -1448,8 +1560,12 @@ def main():
     mix = finish(master(bed, sfx), os.path.join(a.out_dir, '_level_tmp.wav'))
     mp3 = os.path.join(a.out_dir, 'music.mp3')
     write_wav(wav, mix)
-    m = encode(wav, mp3)
-    print(f"music: {mix.shape[1] / SR:.2f}s  wav {m['input_i']} LUFS / {m['input_tp']} dBTP -> {mp3}")
+    try:
+        m = encode(wav, mp3)
+        print(f"music: {mix.shape[1] / SR:.2f}s  wav {m['input_i']} LUFS / {m['input_tp']} dBTP -> {mp3}")
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f'ERROR: could not encode music.mp3 ({e}); music.wav was written ({lufs_np(mix):.2f} LUFS by the built-in meter) but the mp3 deliverable is missing', file=sys.stderr)
+        sys.exit(2)
     dbg = os.environ.get('MUSIC_LLM_DEBUG')
     if dbg:
         os.makedirs(dbg, exist_ok=True)
