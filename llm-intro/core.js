@@ -3,7 +3,7 @@
 // Everything here is global. Scene files (scenes/*.js) are wrapped in their own function scope by build.py,
 // so they may declare any names they like, but they must not redefine the names below.
 
-const W = 1920, H = 1080, BPM = 96, BEAT = 60 / BPM, BAR = BEAT * 4, NBARS = 24, TOTAL = NBARS * BAR;   // BAR = 2.5 s, TOTAL = 60 s
+const W = 1920, H = 1080, BPM = 96, BEAT = 60 / BPM, BAR = BEAT * 4, NBARS = 68, TOTAL = NBARS * BAR;   // BAR = 2.5 s, TOTAL = 170 s (2:50)
 const EXPORT = /[?&]export=1/.test(location.search);
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const PI = Math.PI, TAU = PI * 2;
@@ -295,7 +295,7 @@ const STORY = {
 // ======================================================================== scene API
 // scene({
 //   id: 'tokens',                 // unique name
-//   start: 2, len: 2,             // in BARS (1 bar = 2.5 s); scenes must tile the 24 bars with no gaps
+//   start: 2, len: 2,             // in BARS (1 bar = 2.5 s); scenes must tile the 68 bars with no gaps
 //   fi: .25, fo: .25,             // black fade-in / fade-out seconds at the scene edges (use fi: .01 / fo: 0 for a hard cut)
 //   mb: 3, bloom: 1, grade: {},   // motion-blur sub-samples (1..4), bloom multiplier, overrides for GRADE
 //   ch: ['01', '词元', 'TOKENS'], // chapter label shown top-left for the first seconds

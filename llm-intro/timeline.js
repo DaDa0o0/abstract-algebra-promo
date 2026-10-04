@@ -8,7 +8,7 @@ const SUBS = SC.flatMap(s => (s.subs || []).map(([a, b, zh, en]) => ({ a: s.t0 +
 const HITS = SC.flatMap(s => (s.hits || []).map(([t, k]) => [s.t0 + t, k]));
 const sceneAt = t => { let sc = SC[0]; for (const s of SC) if (t >= s.t0) sc = s; return sc; };
 
-const LB_H = 138, LB_OPEN = [3.1, 4.0], LB_CLOSE = [TOTAL - 6.2, TOTAL - 4.4];   // cinematic bars: closed at the very start and during the finale
+const LB_H = 138, LB_OPEN = [6.2, 7.1], LB_CLOSE = [TOTAL - 5.2, TOTAL - 3.6];   // cinematic bars: closed at the very start and during the finale
 const letterbox = T => LB_H * Math.max(1 - eio(clamp((T - LB_OPEN[0]) / (LB_OPEN[1] - LB_OPEN[0]))), eio(clamp((T - LB_CLOSE[0]) / (LB_CLOSE[1] - LB_CLOSE[0]))));
 
 function drawLayer(t, jx, jy) {
@@ -28,7 +28,7 @@ function drawLayer(t, jx, jy) {
   if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
 }
 function chapter(sc, lt) {
-  if (!sc.ch) return; const a = win(lt, .35, 4.2, .5, .6); if (a <= 0) return;
+  if (!sc.ch) return; const a = win(lt, .35, 5.5, .5, .7); if (a <= 0) return;
   const [n, zh, en] = sc.ch, x = 90, y = 92, slide = (1 - eout(clamp((lt - .35) / .7))) * -30;
   ctx.font = `700 46px ${F_EN}`; const nw = ctx.measureText(n).width;
   text(n, x + slide, y, { font: F_EN, weight: 700, size: 46, color: PAL.gold, alpha: a, align: 'left' });
