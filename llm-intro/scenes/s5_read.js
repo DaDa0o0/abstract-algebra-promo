@@ -1,0 +1,332 @@
+// s5_read: pretraining I. A torrent of text (trillions of tokens), then one example is pulled out, its next word is
+// hidden, an untrained model guesses almost flat, the truth drops in and the loss = -ln(0.01) = 4.6 flashes.
+const R = mulberry(20260005);
+
+// ---------------------------------------------------------------- the data: five kinds of source
+const CATS = [
+  { zh: '书籍', en: 'Books', col: PAL.cyan, font: F_IT, style: 'italic', weight: 500, k: 1.15, lines: [
+    'It was the best of times, it was the worst of times,', 'Call me Ishmael. Some years ago, never mind how long precisely,',
+    'All happy families are alike; each unhappy family is unhappy in its own way.', '在很久很久以前，山里有一座小小的寺庙，',
+    'Chapter 12. The rain had not stopped for three days.', '“你去哪儿？”她轻声问，没有回头。', 'She walked on through the quiet snow,' ] },
+  { zh: '网页', en: 'Web', col: PAL.blue, font: F_UI, style: '', weight: 500, k: .8, lines: [
+    'How to bake sourdough at home: 7 simple steps', 'Top 10 hiking trails near you, ranked by readers', '欢迎来到我们的网站，请登录或注册',
+    'Frequently asked questions about travel insurance', 'Breaking: markets rally as new data arrives', '最新资讯 · 科技 · 生活 · 旅行 · 美食',
+    'Privacy policy  |  Terms of use  |  Contact us' ] },
+  { zh: '代码', en: 'Code', col: PAL.violet, font: F_MONO, style: '', weight: 400, k: .78, lines: [
+    'def softmax(x): return exp(x) / sum(exp(x))', 'for (let i = 0; i < n; i++) { total += a[i]; }', 'SELECT name, email FROM users WHERE id = 42;',
+    'if (x > 0) { return x; } else { return 0; }', 'import numpy as np  # load the data', 'while True: step(model, batch)', '<div class="card">hello</div>' ] },
+  { zh: '论文', en: 'Papers', col: PAL.pink, font: F_MATH, style: '', weight: 400, k: 1.0, lines: [
+    'E = mc²', '∇ · E = ρ / ε₀', '∫ f(x) dx = F(b) − F(a)', 'Abstract. We propose a new network architecture based on attention',
+    'Σ p(xᵢ) = 1,   p(x) ≥ 0', 'Theorem 2. Every finite group of prime order is cyclic.', 'λ v = A v' ] },
+  { zh: '对话', en: 'Dialogue', col: '#c3f26b', font: F_UI, style: '', weight: 500, k: .8, lines: [
+    '“Where are you going?”  “Out. Back soon.”', 'A: Can you help me with this?   B: Of course!', '你吃饭了吗？  还没呢，一起去吧', 'Thanks so much, that really helped!',
+    'Q: Why is the sky blue?   A: Because of scattering', '好的，没问题，明天见！', 'haha ok see you at 8 then' ] },
+];
+const SENT = 'The cat sat on the mat';
+const PRE = 'The cat sat on the ';
+
+// ---------------------------------------------------------------- tunnel tables (3D billboards flying at the camera)
+const ZMIN = .5, ZMAX = 7, ZR = ZMAX - ZMIN, VPX = 960, VPY = 505, FOC = 680;
+const SN = Array.from({ length: 210 }, (_, i) => {
+  const c = Math.floor(R() * 5), cat = CATS[c], th = R() * TAU, r = 1.0 + Math.pow(R(), .8) * 2.6;
+  return { c, line: cat.lines[Math.floor(R() * cat.lines.length)], x: Math.cos(th) * r * 1.5, y: Math.sin(th) * r * .95, u: R() * ZR, base: (62 + R() * 32) * cat.k, z: 0 };
+});
+const BASEPX = 44, SNC = CATS.map((_, ci) => SN.filter(q => q.c === ci));
+const DUST = Array.from({ length: 330 }, () => { const th = R() * TAU, r = .35 + Math.pow(R(), .7) * 3.2; return { x: Math.cos(th) * r * 1.5, y: Math.sin(th) * r * .95, u: R() * ZR, a: .25 + R() * .6 }; });
+
+// time warp: 1 = full torrent speed; decays to a crawl as the example is pulled out
+const SLOW0 = 2.55, SLOWL = 1.6, SFLOOR = .12;      // the stream never stops dead: it keeps drifting as a dim backdrop
+function warp(lt) {
+  const u = clamp((lt - SLOW0) / SLOWL), g = lt < SLOW0 ? lt : SLOW0 + SLOWL * (1 - Math.pow(1 - u, 3)) / 3;
+  return SFLOOR * lt + (1 - SFLOOR) * g;
+}
+const speedAt = lt => SFLOOR + (1 - SFLOOR) * (lt < SLOW0 ? 1 : Math.pow(1 - clamp((lt - SLOW0) / SLOWL), 2));
+const SPD = 1.75;                       // world z units per warp-second
+
+// ---------------------------------------------------------------- the story geometry (beat 2)
+const SENT_SIZE = 92, SENT_Y = 238;
+let wPre = 0, wMat = 0, wFull = 0;                        // measured at draw time, after the fonts are loaded
+function layout() { wPre = measure(PRE, SENT_SIZE, F_UI, 600); wMat = measure('mat', SENT_SIZE, F_UI, 600); wFull = wPre + wMat; }
+const BX = 130, BY = 384, BW = 860, BH = 470, GX = 1070, GW = 720;           // bars panel, gauge panel
+const ROW0 = BY + 104, ROWP = 58, ROWX = 12, LABX = BX + 48, BARX = BX + 240, BSCALE = 7500;
+const T_LOCK = 3.75, T_TRUTH = 5.0, T_LOSS = 5.625;                                        // example settles (beat 6) / the true word lands (beat 9)
+const mixHex = (a, b, t) => { const p = parseInt(a.slice(1), 16), q = parseInt(b.slice(1), 16), f = (sh) => Math.round(lerp((p >> sh) & 255, (q >> sh) & 255, t)); return `${f(16)},${f(8)},${f(0)}`; };     // 'r,g,b'
+const UNT = STORY.untrained;
+const MATROW = UNT.findIndex(r => r[0] === 'mat');
+const GCX = GX + GW / 2, GCY = 690, GR = 148, LOSS = -Math.log(.01);
+const TAGS = [.5, 1.0, 1.5, 2.0, 2.5];
+const TAGGAP = 22;
+const CNT_FINAL = '10,000,000,000,000';
+
+scene({
+  id: 'read', start: 11, len: 3, mb: 3, bloom: 1, fo: .18, grade: { ca: .0012 },
+  ch: ['05', '预训练', 'PRETRAINING'],
+  subs: [
+    [0.3, 3.7, '它先“阅读”：书籍、网页、代码……数万亿个词', 'First it reads: books, web pages, code… trillions of words'],
+    [3.9, 7.3, '练习很简单：遮住下一个词，让它去猜', 'The exercise is simple: hide the next word and let it guess'],
+  ],
+  sfx: [
+    [0.0, 'whoosh', { dur: 1.6 }], [0.3, 'count', { dur: 2.2 }], [1.0, 'swish', { pitch: 1.3 }], [1.3, 'ping', { midi: 84 }],
+    ...TAGS.map((t, i) => [t, 'chip', { midi: 62 + [0, 2, 4, 7, 9][i] }]),
+    [3.125, 'hit', { k: .5 }], [3.0, 'whoosh', { dur: .9, rev: 1 }],
+    [3.75, 'chip', { midi: 72 }],
+    [3.9, 'swish', { pitch: .8 }], [4.375, 'pop'],
+    [4.2, 'pop'], ...UNT.map((_, i) => [4.3 + i * .1, 'blip', { midi: 55 + i * 2 }]),
+    [5.0, 'chip', { midi: 79 }], [5.0, 'up'],
+    [5.3, 'scan', { dur: .3 }], [5.625, 'down'], [5.625, 'hit', { k: .4 }], [5.65, 'count', { dur: .5 }], [6.25, 'thump'],
+  ],
+  hits: [[3.125, .3], [5.625, .35]],
+  cam: lt => ({ z: 1 + .035 * lt / 7.5 + .02 * Math.exp(-Math.pow(lt - 3.125, 2) * 3) + .012 * Math.exp(-Math.pow(lt - 5.625, 2) * 3), x: 6 * Math.sin(lt * .21), y: 4 * Math.sin(lt * .17 + 1) }),
+
+  draw(lt) {
+    layout();
+    const ph = warp(lt), sp = speedAt(lt);
+    const tunnelA = 1 - .82 * sstep(3.2, 4.8, lt);                 // the torrent recedes into a dim, slowly drifting backdrop
+    const b2 = sstep(3.4, 4.8, lt);                               // 0 = torrent beat, 1 = example beat
+
+    // ---- hero sentence geometry (needed early: the torrent gives way around it)
+    const hA = sstep(1.8, 2.3, lt);
+    const zh = lerp(3.2, 2.2, eio(clamp((lt - 1.6) / 1.5)));
+    const hx0 = VPX + FOC * -.5 / zh, hy0 = VPY + FOC * -.95 / zh, hs0 = (150 / zh) / SENT_SIZE;
+    const bl = eio(clamp((lt - 2.6) / (T_LOCK - 2.6)));
+    const hcx = lerp(hx0, W / 2, bl), hcy = lerp(hy0, SENT_Y, bl), hsc = lerp(hs0, 1, bl);
+    const heroHW = wFull * hsc / 2 + 50, heroHH = 80 * hsc + 10, heroDim = hA;
+
+    // ---- backdrop: cool grid floor racing under the horizon
+    glDraw(2, { time: ph * 1.15 + 40, tint: [.07, .2, .52], amp: lerp(.8, .5, b2), horizon: (H / 2 - VPY) / (H / 2) });
+
+    // ---- light at the vanishing point
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const pulse = 1 + .05 * Math.sin(lt * 5);
+    glowDot(VPX, VPY, 520 * pulse, 'rgba(70,130,255,A)', .2 * tunnelA);
+    ctx.restore();
+
+    // ---- speed dust: radial streaks
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.beginPath();
+      for (const d of DUST) {
+        if ((d.a > .55) !== (pass === 1)) continue;
+        const z = ZMAX - ((d.u + ph * SPD) % ZR), z2 = Math.min(ZMAX + 1, z + .22 * sp + .01);
+        const x1 = VPX + FOC * d.x / z, y1 = VPY + FOC * d.y / z, x2 = VPX + FOC * d.x / z2, y2 = VPY + FOC * d.y / z2;
+        if (x1 < -60 || x1 > W + 60 || y1 < -60 || y1 > H + 60) continue;
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      }
+      ctx.lineWidth = pass ? 2 : 1.3; ctx.strokeStyle = pass ? 'rgba(150,210,255,.5)' : 'rgba(110,160,255,.3)';
+      ctx.globalAlpha = tunnelA * (pass ? .9 : .75); ctx.stroke();
+    }
+    ctx.restore();
+
+    // ---- the torrent of text (one font per source kind; depth by scale, so the near words soften like out-of-focus type)
+    if (tunnelA > .01) {
+      ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const cornerOn = 1 - sstep(3.0, 4.2, lt), ca0 = win(lt, 0, 4.1, .3, .5);                    // keep the chapter-label corner calm
+      CATS.forEach((cat, ci) => {
+        const list = SNC[ci], tg = TAGS[ci] < lt ? Math.exp(-(lt - TAGS[ci]) * 1.7) : 0;        // a source tag lights its own kind of text
+        const zs = list.map(s => ZMAX - ((s.u + ph * SPD) % ZR)), order = zs.map((_, i) => i).sort((p, q) => zs[q] - zs[p]);   // far to near (pure: nothing is stored)
+        ctx.font = `${cat.style} ${cat.weight} ${BASEPX}px ${cat.font}`; ctx.fillStyle = tg > .15 ? `rgb(${mixHex(cat.col, '#ffffff', .35)})` : rgba(cat.col, .95); ctx.shadowColor = cat.col; ctx.shadowBlur = tg > .2 ? 14 : 0;
+        for (const oi of order) {
+          const s = list[oi], z = zs[oi];
+          const t = (z - ZMIN) / ZR, size = s.base / z;
+          const sx = VPX + FOC * s.x / z, sy = VPY + FOC * s.y / z;
+          if (size < 18 || sx < -700 || sx > W + 700 || sy < -80 || sy > H + 80) continue;
+          let a = Math.pow(1 - t, .75) * sstep(1, .86, t) * (.5 + .5 * sstep(0, .1, t)) * .95 * (1 + 2.2 * tg) * lerp(1, sstep(1.8, 4.2, z), b2);
+          a *= tunnelA * sstep(1.7, 2.5, z) * (1 - sstep(790, 900, sy));          // near words dissolve; nothing runs into the subtitle zone
+          const hw = size * s.line.length * .27;
+          if (cornerOn > 0 && sy < 200) a *= 1 - .88 * cornerOn * (1 - sstep(680, 900, sx - hw)) * (1 - sstep(130, 200, sy));
+          if (ca0 > 0) { const dx = Math.max(0, Math.abs(sx - W / 2) - hw - 640), dy = Math.max(0, Math.abs(sy - 555) - size * .6 - 150); a *= 1 - .9 * ca0 * (1 - sstep(0, 50, Math.hypot(dx, dy))); }   // calm zone around the counter and the source tags
+          if (heroDim > 0) { const dx = Math.max(0, Math.abs(sx - hcx) - hw - heroHW), dy = Math.max(0, Math.abs(sy - hcy) - size * .6 - heroHH); a *= 1 - .92 * heroDim * (1 - sstep(0, 70, Math.hypot(dx, dy))); }
+          if (a < .02) continue;
+          ctx.globalAlpha = Math.min(1, a);
+          const k = size / BASEPX; ctx.save(); ctx.translate(sx, sy); ctx.scale(k, k); ctx.fillText(s.line, 0, 0); ctx.restore();
+        }
+      });
+      ctx.restore();
+    }
+
+    // ---- counter: TOKENS READ racing up through the orders of magnitude (beat 1); the final number is held on screen ~1.1 s
+    const ca = win(lt, 0, 4.1, .3, .5);
+    if (ca > .01) {
+      const lq = Math.floor(lt * 30 + .5) / 30, k = clamp((lq - .25) / 2.25), p = 1 - Math.pow(1 - k, 1.5), v = Math.pow(10, 1.6 + 11.4 * p);
+      let digs = String(Math.round(v)); if (k >= 1) digs = '10000000000000';
+      if (k < 1) digs = [...digs].map((c, i) => i < 2 ? c : String(Math.floor(hash1(Math.floor(lt * 15 + .25) * 13 + i * 5.3) * 10))).join('');
+      const s = digs.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      const size = 92, wFin = measure(CNT_FINAL, size, F_MONO, 700), wPlus = measure('+', size, F_MONO, 700), cx = W / 2 - wPlus / 2;
+      const lock = lt >= 3.125 ? lt - 3.125 : -1, settle = lt >= 2.5 ? Math.exp(-(lt - 2.5) * 5) * .5 : 0;
+      // dark scrim keeps the numerals readable over the torrent
+      ctx.save(); ctx.translate(W / 2, 535); ctx.scale(1.9, 1); const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 380);
+      g.addColorStop(0, `rgba(2,5,14,${.82 * ca})`); g.addColorStop(.6, `rgba(2,5,14,${.5 * ca})`); g.addColorStop(1, 'rgba(2,5,14,0)'); ctx.fillStyle = g; ctx.fillRect(-400, -300, 800, 600); ctx.restore();
+      text('已读词元  ·  TOKENS READ', W / 2, 442, { font: F_UI, weight: 600, size: 30, ls: 7, color: '#bfe4ff', alpha: ca });
+      const flash = lock >= 0 ? Math.exp(-lock * 4) : 0;
+      text(s, cx, 538, { font: F_MONO, weight: 700, size, color: '#fff', alpha: ca, glow: 'rgba(110,190,255,.9)', blur: 18 + 40 * Math.max(flash, settle) });
+      text('例如  ·  e.g.  数量级示意  ·  illustrative scale', W / 2, 610, { font: F_UI, weight: 500, size: 24, color: '#a9c8f4', alpha: ca * sstep(2.0, 2.6, lt) });
+      if (lock >= 0) {
+        const e = eback(clamp(lock / .45));
+        text('+', cx + wFin / 2 + wPlus / 2, 538 - (1 - e) * 24, { font: F_MONO, weight: 700, size, color: PAL.cyan, alpha: ca * clamp(lock / .15), glow: 'rgba(110,190,255,.9)', blur: 30 });
+        flare(W / 2, 538, Math.exp(-lock * 9) * .8 * ca, 760);
+      }
+      // source tags
+      const ty = 660, TAGW = CATS.map(c => measure(c.zh + '  ' + c.en, 30, F_UI, 600) + 52), TAGTOT = TAGW.reduce((a, b) => a + b, 0) + TAGGAP * 4; let x = W / 2 - TAGTOT / 2;
+      CATS.forEach((c, i) => {
+        const kk = clamp((lt - TAGS[i]) / .5), cxm = x + TAGW[i] / 2; x += TAGW[i] + TAGGAP;
+        if (kk <= 0) return;
+        const e = eback(kk), al = ca * clamp(kk * 3), fl = Math.exp(-(lt - TAGS[i]) * 5);
+        ctx.save(); ctx.translate(cxm, ty + (1 - e) * 36);
+        ctx.save(); ctx.globalAlpha = al * .85; rrect(-TAGW[i] / 2, -25.5, TAGW[i], 51, 14); ctx.fillStyle = 'rgba(3,8,20,.9)'; ctx.fill(); ctx.restore();   // dark backing: the label stays crisp over the torrent
+        chip(c.zh + '  ' + c.en, 0, 0, { size: 30, font: F_UI, weight: 600, color: c.col, textColor: `rgb(${mixHex(c.col, '#ffffff', .8)})`, pad: 26, alpha: al, glow: 8 + 22 * fl, fillA: .12 + .3 * fl, strokeA: 1 });
+        ctx.restore();
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(cxm, ty, 140 * (1 + fl), hexA(c.col), .16 * fl * al); ctx.restore();
+      });
+    }
+
+    // ---- hero sentence: pulled out of the stream along a bright streak, then settles as the example
+    if (hA > 0) {
+      const sliding = 1 - bl, since = lt - T_LOCK;
+      if (sliding > .01) {                                          // trail from the vanishing point
+        const tx0 = lerp(VPX, hcx, .42), ty0 = lerp(VPY, hcy, .42);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+        const g = ctx.createLinearGradient(tx0, ty0, hcx, hcy); g.addColorStop(0, 'rgba(160,215,255,0)'); g.addColorStop(1, 'rgba(235,248,255,.95)');
+        ctx.strokeStyle = g; ctx.lineWidth = 4; ctx.globalAlpha = .8 * hA * Math.min(1, sliding * 1.6); ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(hcx, hcy); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.save(); ctx.translate(hcx, hcy); ctx.scale(hsc, hsc);
+      if (sliding > .01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(0, 0, 360, 'rgba(120,200,255,A)', .3 * sliding * hA); ctx.restore(); }
+      const plate = hA * (1 - sstep(3.55, 3.95, lt));               // dark glass plate keeps the example readable until the stream has faded
+      if (plate > .01) glass(-wFull / 2 - 34, -80, wFull + 68, 160, { alpha: plate, r: 30, fill: 'rgba(3,8,22,.9)', stroke: 'rgba(170,225,255,.95)', lw: 3, glow: 'rgba(110,190,255,.8)', blur: 36 });
+      drawSentence(lt, hA);
+      if (since > 0 && since < .9) {                                // gold-white pulse as the example locks in
+        const f = Math.exp(-since * 5.5);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(0, 0, 520, 'rgba(255,222,150,A)', .33 * f);
+        ctx.strokeStyle = `rgba(255,236,190,${.7 * f})`; ctx.lineWidth = 3; rrect(-wFull / 2 - 34 - 70 * since, -80 - 40 * since, wFull + 68 + 140 * since, 160 + 80 * since, 30 + 20 * since); ctx.stroke(); ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    // ---- beat 2: hidden word, untrained guess, truth, loss
+    if (lt > 3.5) beatTwo(lt);
+  },
+});
+
+// the sentence in local coords (centre 0,0, base size SENT_SIZE). Handles the mask over "mat" and the mint answer that drops into it.
+function drawSentence(lt, a) {
+  const x0 = -wFull / 2, S = SENT_SIZE;
+  const wf = clamp((lt - 3.85) / .2);                          // the visible "mat" fades out first ...
+  const mk = eio(clamp((lt - 4.0) / .375));                    // ... then the mask wipes in over its slot (lands on beat 7, 4.375 s)
+  const drop = clamp((lt - T_TRUTH) / .5), de = eback(drop);   // the true word drops in
+  text(PRE.trimEnd(), x0, 0, { font: F_UI, weight: 600, size: S, align: 'left', color: '#f4f9ff', alpha: a, glow: 'rgba(120,190,255,.55)', blur: 26 });
+  const mx = x0 + wPre, mw = wMat;
+  const wordA = a * (1 - wf) * (1 - clamp(drop * 4));
+  if (wordA > .01) text('mat', mx, 0, { font: F_UI, weight: 600, size: S, align: 'left', color: '#f4f9ff', alpha: wordA, glow: 'rgba(120,190,255,.55)', blur: 26 });
+  if (mk > 0) {
+    const padX = 16, h = S * 1.2, answered = drop > 0;
+    const col = answered ? PAL.mint : PAL.cyan, pulse = .5 + .5 * Math.sin(lt * 6);
+    ctx.save();                                                          // the pill grows from its left edge (no clip, so the glow is never cut off)
+    glass(mx - padX, -h / 2, Math.max(4, (mw + padX * 2) * mk), h, { r: 22, fill: answered ? 'rgba(10,40,34,.78)' : 'rgba(10,24,52,.88)', stroke: rgba(col, .95), lw: 3, glow: rgba(col, .8 * clamp(mk * 2)), blur: 26 + 14 * pulse * (answered ? 0 : 1), alpha: clamp(mk * 4) });
+    ctx.restore();
+    const qa = a * sstep(.5, 1, mk) * (1 - sstep(0, .12, drop));          // the "?" is gone before the true word falls through it
+    if (qa > .01) text('?', mx + mw / 2, S * .02 - 14 * sstep(0, .12, drop), { font: F_UI, weight: 700, size: S, color: '#fff', alpha: qa, glow: 'rgba(120,200,255,.9)', blur: 22 + 12 * pulse });
+    if (answered) {
+      const yy = -(1 - de) * 130;
+      text('mat', mx, yy + S * .0, { font: F_UI, weight: 600, size: S, align: 'left', color: PAL.mint, alpha: a * sstep(.1, .32, drop), glow: 'rgba(94,242,176,.9)', blur: 30 });
+      const ring = 1 - drop;
+      if (ring > 0 && ring < 1) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = rgba(PAL.mint, .6 * ring); ctx.lineWidth = 3; rrect(mx - padX - 40 * drop, -h / 2 - 40 * drop, mw + padX * 2 + 80 * drop, h + 80 * drop, 30); ctx.stroke(); ctx.restore(); }
+    }
+  }
+}
+
+function beatTwo(lt) {
+  // ---- labels under the sentence
+  const LY = SENT_Y + 104;
+  const hid = sstep(4.4, 4.65, lt) * (1 - sstep(4.85, 5.0, lt)), tru = sstep(5.1, 5.4, lt);
+  const slotX = W / 2 - wFull / 2 + wPre + wMat / 2;
+  const ex = sstep(3.5, 3.8, lt) * (1 - sstep(4.0, 4.3, lt));
+  if (ex > 0) text('海量文本中的一个训练样例  ·  one training example from the data', W / 2, LY, { font: F_UI, weight: 500, size: 26, color: '#a9c8f4', alpha: ex });
+  if (hid > 0) text('被遮住的下一个词  ·  the hidden next word', slotX, LY, { font: F_UI, weight: 500, size: 26, color: '#a9c8f4', alpha: hid });
+  if (tru > 0) text('真正的下一个词  ·  the true next word', slotX, LY, { font: F_UI, weight: 500, size: 26, color: PAL.mint, alpha: tru });
+
+  // slow push-in on the two panels through the last seconds
+  const push = 1 + .02 * sstep(5.6, 7.5, lt);
+  ctx.save(); ctx.translate(W / 2, 640); ctx.scale(push, push); ctx.translate(-W / 2, -640);
+
+  // ---- bars: the untrained model's guess (the panel appears together with its first bars)
+  const lq0 = Math.floor(lt * 30 + .5) / 30, pa = sstep(4.1, 4.4, lt);
+  const hl = sstep(5.15, 5.5, lt), tr = sstep(T_TRUTH, T_TRUTH + .3, lt);                  // "mat" row is highlighted / turns mint once the truth has landed
+  if (pa > 0) {
+    glass(BX, BY, BW, BH, { alpha: pa, r: 24, fill: 'rgba(5,10,26,.78)', stroke: 'rgba(150,190,255,.3)' });
+    text('未训练的模型的猜测  ·  UNTRAINED MODEL’S GUESS', BX + 48, BY + 40, { font: F_UI, weight: 600, size: 24, ls: 2.5, align: 'left', color: '#bcd2f5', alpha: pa });
+    UNT.forEach(([label, p], i) => {
+      const t0 = 4.2 + i * .1, k = eout(clamp((lt - t0) / .55)), kt = eout(clamp((lq0 - t0) / .55)); if (k <= 0) return;
+      const other = label === '…', y = ROW0 + i * ROWP + (other ? ROWX : 0), isMat = i === MATROW, rgb = isMat ? mixHex(PAL.cyan, PAL.mint, tr) : null, col = isMat ? `rgb(${rgb})` : other ? '#7f93bd' : PAL.cyan;
+      const dim = 1 - .35 * hl * (isMat ? 0 : 1);
+      const w = p * BSCALE * k, a = pa * dim * clamp(k * 3);
+      if (other) { ctx.save(); ctx.fillStyle = '#e6f0ff'; ctx.globalAlpha = a; for (let q = 0; q < 3; q++) { ctx.beginPath(); ctx.arc(LABX + 10 + q * 16, y, 3.5, 0, TAU); ctx.fill(); } ctx.restore(); }
+      else text(label, LABX, y, { font: F_MONO, size: 32, weight: isMat && hl > .5 ? 700 : 400, align: 'left', color: isMat && hl > .3 ? PAL.mint : '#e6f0ff', alpha: a });
+      if (other) {                                          // the rest of the vocabulary: thousands of tiny equal ticks, axis-broken (they sum to 85 %)
+        const L1 = 240, L = L1 * k;
+        ctx.save(); ctx.globalAlpha = a * .75; ctx.fillStyle = col; ctx.beginPath();
+        for (let x = 0; x < L - 20; x += 6) ctx.rect(BARX + x, y - 11, 3, 22);
+        ctx.fill(); ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = 3;
+        ctx.beginPath(); for (const dx of [0, 12]) { ctx.moveTo(BARX + L - 6 + dx, y + 15); ctx.lineTo(BARX + L + 6 + dx, y - 15); } ctx.stroke(); ctx.restore();
+        text(Math.round(p * 100) + ' %', BARX + L1 + 36, y, { font: F_MONO, size: 30, align: 'left', color: '#fff', alpha: a * sstep(.5, 1, k) });
+        text('其余数万个词', BARX + L1 + 128, y - 14, { font: F_UI, size: 22, weight: 500, align: 'left', color: '#9bb1d8', alpha: a * .95 * sstep(.5, 1, k) });
+        text('every other word', BARX + L1 + 128, y + 14, { font: F_UI, size: 22, weight: 500, align: 'left', color: '#9bb1d8', alpha: a * .95 * sstep(.5, 1, k) });
+        return;
+      }
+      const g = ctx.createLinearGradient(BARX, 0, BARX + w, 0); g.addColorStop(0, isMat ? `rgba(${rgb},.3)` : rgba(col, .3)); g.addColorStop(1, isMat ? `rgba(${rgb},.95)` : rgba(col, .95));
+      ctx.save(); ctx.globalAlpha = a; ctx.shadowColor = col; ctx.shadowBlur = isMat && hl > 0 ? 18 + 18 * hl : 12; ctx.fillStyle = g; rrect(BARX, y - 13, Math.max(4, w), 26, 13); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(BARX + w, y, 28, isMat ? `rgba(${rgb},A)` : hexA(col), .5 * a); ctx.restore();
+      const big = isMat ? 1 + .12 * hl : 1;
+      text(Math.round(p * 100 * kt) + ' %', BARX + p * BSCALE * kt + 20, y, { font: F_MONO, size: 30 * big, weight: isMat && hl > .5 ? 700 : 400, align: 'left', color: isMat && hl > .3 ? PAL.mint : '#fff', alpha: a, glow: isMat && hl > 0 ? 'rgba(94,242,176,.8)' : undefined, blur: 18 });
+      if (isMat && hl > 0) {
+        text('正确答案  ·  the true answer', BARX + w + 126, y, { font: F_UI, size: 22, weight: 600, align: 'left', color: PAL.mint, alpha: a * hl });
+        ctx.save(); ctx.globalAlpha = a * hl; rrect(BX + 24, y - 27, BW - 48, 54, 14); ctx.strokeStyle = rgba(PAL.mint, .55 + .3 * Math.sin(lt * 7)); ctx.lineWidth = 2; ctx.shadowColor = PAL.mint; ctx.shadowBlur = 16; ctx.stroke(); ctx.restore();
+      }
+    });
+  }
+
+  // ---- connection light: the 1 % travels to the loss gauge, then the gauge
+  const gp = sstep(4.4, 4.8, lt), gl_ = sstep(5.4, 5.7, lt), ga = gl_;      // the gauge panel waits, dim and empty, from the first bars; it lights up when the 1 % reaches it
+  const my = ROW0 + MATROW * ROWP;
+  if (lt > 5.1) {
+    const kk = clamp((lt - 5.1) / .45), sx = BX + BW - 24, c1x = sx + 40, ex2 = GX, ey = GCY - 20;
+    const bez = t => { const u = 1 - t; return [u * u * u * sx + 3 * u * u * t * c1x + 3 * u * t * t * (ex2 - 40) + t * t * t * ex2, u * u * u * my + 3 * u * u * t * my + 3 * u * t * t * ey + t * t * t * ey]; };
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = rgba(PAL.coral, .5 * Math.min(1, kk * 2)); ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.lineDashOffset = -lt * 60;
+    ctx.beginPath(); ctx.moveTo(sx, my); ctx.bezierCurveTo(c1x, my, ex2 - 40, ey, ex2, ey); ctx.stroke(); ctx.setLineDash([]);
+    if (kk < 1) { const [bx, by] = bez(kk); glowDot(bx, by, 44, 'rgba(255,107,122,A)', .9); }
+    else { for (let q = 0; q < 3; q++) { const u = (((lt - 5.55) * 1.3 + q / 3) % 1 + 1) % 1, [bx, by] = bez(u); glowDot(bx, by, 26, 'rgba(255,107,122,A)', .8 * Math.sin(PI * u)); } }
+    ctx.restore();
+  }
+  if (gp > 0) {
+    const fl = Math.max(lt > T_LOSS ? Math.exp(-(lt - T_LOSS) * 3.5) : 0, lt > 6.25 ? .6 * Math.exp(-(lt - 6.25) * 4) : 0);     // flash on the `down` hit, and once more on the next beat
+    const lead = sstep(6.4, 7.5, lt);                                   // slow forward motion into the next scene: the gauge swells a little
+    ctx.save(); ctx.translate(GCX, 640); ctx.scale(1 + .025 * lead, 1 + .025 * lead); ctx.translate(-GCX, -640);
+    const pan = gp * (.55 + .45 * gl_);
+    glass(GX, BY, GW, BH, { alpha: pan, r: 24, fill: 'rgba(24,8,18,.76)', stroke: rgba(PAL.coral, .3 + .2 * gl_ + .4 * fl), glow: rgba(PAL.coral, .6 * gl_), blur: 16 + 60 * fl });
+    text('损失  ·  LOSS', GCX, BY + 40, { font: F_UI, weight: 600, size: 26, ls: 4, color: '#ffb2ba', alpha: pan });
+    text('−ln P(mat)', GCX, BY + 84, { font: F_MONO, size: 34, color: '#f2dfe2', alpha: pan });
+    // arc gauge: 0 .. 7
+    const lq = Math.floor(lt * 30 + .5) / 30, kk = lt < 5.4 ? 0 : eexpo(clamp((lq - 5.4) / .5)), val = LOSS * kk, a0 = PI, a1 = TAU, ang = a0 + (a1 - a0) * (val / 7);
+    ctx.save(); ctx.globalAlpha = pan; ctx.lineCap = 'round';
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(160,190,255,.16)'; ctx.beginPath(); ctx.arc(GCX, GCY, GR, a0, a1); ctx.stroke();
+    if (val > .02) {
+      ctx.shadowColor = PAL.coral; ctx.shadowBlur = 24; ctx.strokeStyle = PAL.coral; ctx.beginPath(); ctx.arc(GCX, GCY, GR, a0, ang); ctx.stroke(); ctx.shadowBlur = 0;
+    }
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(200,215,255,.45)';
+    for (let i = 0; i <= 7; i++) { const aa = a0 + (a1 - a0) * i / 7, c = Math.cos(aa), s = Math.sin(aa); ctx.beginPath(); ctx.moveTo(GCX + c * (GR + 20), GCY + s * (GR + 20)); ctx.lineTo(GCX + c * (GR + 32), GCY + s * (GR + 32)); ctx.stroke(); }
+    ctx.restore();
+    text('0', GCX - GR, GCY + 34, { font: F_MONO, size: 22, color: '#9fb2d8', alpha: pan }); text('7', GCX + GR, GCY + 34, { font: F_MONO, size: 22, color: '#9fb2d8', alpha: pan });
+    if (val > .02) {
+      const tx = GCX + Math.cos(ang) * GR, ty = GCY + Math.sin(ang) * GR;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowDot(tx, ty, 34 + 30 * fl, 'rgba(255,107,122,A)', .75); ctx.restore();
+    }
+    const shown = kk >= .999 ? LOSS : Math.floor(val * 10) / 10;           // quantised so the digits never ghost between sub-frames
+    if (val > .02) text(shown.toFixed(1), GCX, GCY - 40, { font: F_MONO, weight: 700, size: 104, color: '#fff', alpha: pan, glow: 'rgba(255,107,122,.95)', blur: 30 + 40 * fl });
+    else text('?', GCX, GCY - 40, { font: F_MONO, weight: 700, size: 104, color: '#9fb2d8', alpha: pan * .55 });
+    text('= −ln(0.01)', GCX, GCY + 62, { font: F_MONO, size: 34, color: '#ffc4ca', alpha: ga * sstep(5.6, 6.0, lt) });
+    const pl = sstep(5.65, 6.05, lt);                       // the plain-words reading of the number
+    text('错得越离谱，损失越大', GCX, GCY + 106, { font: F_UI, size: 28, weight: 600, color: '#ffe3e6', alpha: ga * pl });
+    text('the more wrong the guess, the bigger the loss', GCX, GCY + 142, { font: F_UI, size: 24, weight: 500, color: '#ffc4ca', alpha: ga * pl });
+    ctx.restore();
+  }
+  ctx.restore();
+}
