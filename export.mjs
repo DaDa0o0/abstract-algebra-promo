@@ -3,6 +3,10 @@
 //   node export.mjs [--workers 6] [--fps 30] [--from 0] [--to <end>] [--crf 18] [--out "抽象代数宣传片.mp4"]
 //   node export.mjs --shots 5,20.5,60         (write single frames to shots/ for checking)
 //   node export.mjs --cues cues.json          (dump the sound-effect cue sheet for music.py)
+//   node export.mjs --bench 10,20             (time 12 frames between two instants; prints ms per frame)
+//
+// Other projects can reuse this exporter:  --page <html> --audio <mp3> --shotdir <dir>
+// (ffmpeg is taken from the FFMPEG environment variable, else from PATH.)
 //
 // Each worker is a separate headless Chrome that renders exact frame times (the page's ?export=1 mode).
 // Frames are handed out one at a time and written to ffmpeg in order, so the video is identical for any
@@ -19,9 +23,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => (v.startsWith('--') ? [...a, [v.slice(2), all[i + 1]]] : a), []));
 const FPS = +(args.fps || 30), CRF = +(args.crf || 18);
-const WORKERS = args.shots || args.cues ? 1 : Math.max(1, +(args.workers || Math.min(6, Math.floor(availableParallelism() / 2.5))));
+const WORKERS = args.shots || args.cues || args.bench ? 1 : Math.max(1, +(args.workers || Math.min(6, Math.floor(availableParallelism() / 2.5))));
 const page = resolve(here, args.page || 'promo.html');
-const mp3 = join(here, 'music.mp3');
+const mp3 = resolve(here, args.audio || 'music.mp3');
 const OUT = resolve(here, args.out || '抽象代数宣传片.mp4');
 const CHROME = [process.env.CHROME, 'C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome'].find(p => p && existsSync(p));
@@ -90,8 +94,14 @@ if (args.cues) {                                                // the sound-eff
   console.log(`wrote ${args.cues}`);
   process.exit(0);
 }
+if (args.bench) {
+  const [a, b] = args.bench.split(',').map(Number), n = 12, t0 = Date.now();
+  for (let i = 0; i < n; i++) await workers[0].frame(a + (b - a) * i / (n - 1));
+  console.log(`bench ${a}s-${b}s: ${((Date.now() - t0) / n).toFixed(0)} ms/frame (${n} frames, 1 worker)`);
+  process.exit(0);
+}
 if (args.shots) {
-  const dir = join(here, 'shots'); mkdirSync(dir, { recursive: true });
+  const dir = resolve(here, args.shotdir || 'shots'); mkdirSync(dir, { recursive: true });
   for (const t of args.shots.split(',').map(Number)) writeFileSync(join(dir, `t${t.toFixed(2).padStart(7, '0')}.jpg`), await workers[0].frame(t));
   console.log(`wrote ${args.shots.split(',').length} shots to ${dir}`);
   process.exit(0);
@@ -100,7 +110,7 @@ if (args.shots) {
 const DUR = await workers[0].evaluate('window.__duration');
 const FROM = +(args.from || 0), TO = Math.min(+(args.to || DUR), DUR), N = Math.round((TO - FROM) * FPS);
 console.log(`rendering ${N} frames (${FROM.toFixed(2)}s → ${TO.toFixed(2)}s @ ${FPS} fps) → ${OUT}`);
-ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-',
+ff = spawn(process.env.FFMPEG || 'ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-',
   '-ss', String(FROM), '-t', String(TO - FROM), '-i', mp3, '-map', '0:v:0', '-map', '1:a:0',
   '-c:v', 'libx264', '-preset', 'medium', '-crf', String(CRF), '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-r', String(FPS),
   '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', OUT], { stdio: ['pipe', 'inherit', 'inherit'] });
