@@ -45,6 +45,10 @@ node export.mjs --shots 5,60,150
 
 检查帧会写入 `shots/`。`music.wav`、视频母版、分享版和检查帧属于大体积生成文件，不纳入 Git；分享版视频见 Release。
 
+## 另一部短片：大语言模型 · 一分钟看懂
+
+`llm-intro/` 里是同一套管线做的第二部短片，约 2 分 50 秒，讲大语言模型如何工作、如何训练（词元、向量、注意力、预测，预训练、微调，以及它为什么会出错）。中英双语字幕，没有旁白。详见 [`llm-intro/README.md`](llm-intro/README.md)；制作规范见 [`llm-intro/SPEC.md`](llm-intro/SPEC.md)。`node export.mjs` 现在支持 `--page`、`--audio`、`--shotdir`、`--bench`，也可以导出别的页面。
+
 ## 字体与发布说明
 
 动画使用 Google Fonts 提供的 Noto Serif SC、Cinzel、Cormorant Garamond、Great Vibes 和 STIX Two Text。仓库未打包字体文件。代码与音乐由本工程生成；仓库未附加再许可声明。

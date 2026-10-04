@@ -19,7 +19,7 @@ def check(video):
     info = ff('-i', video)
     dur = re.search(r'Duration: (\d+):(\d+):([\d.]+)', info)
     secs = int(dur.group(1)) * 3600 + int(dur.group(2)) * 60 + float(dur.group(3)) if dur else -1
-    print(f'duration      {secs:.3f} s  (expected 60.000)')
+    print(f'duration      {secs:.3f} s  (the 2:50 cut should be 170.000)')
     for line in info.splitlines():
         if 'Stream #' in line:
             print('stream       ', line.strip())
