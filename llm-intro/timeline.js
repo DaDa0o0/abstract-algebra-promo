@@ -46,12 +46,17 @@ function subtitles(T) {
   }
 }
 function overlays(T) {
+  // impact flash: a short additive radial burst (corners and the black cinema bars stay dark, so it never greys the frame out)
+  let flash = 0; for (const [th, k] of HITS) if (T >= th && T < th + 1.0) flash += k * Math.exp(-(T - th) * 8);
+  if (flash > .01) {
+    const a = Math.min(.55, flash * 1.1), g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 1050);
+    g.addColorStop(0, `rgba(215,232,255,${a})`); g.addColorStop(.55, `rgba(160,190,255,${a * .35})`); g.addColorStop(1, 'rgba(120,150,255,0)');
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
   const lb = letterbox(T);
   if (lb > .5) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, lb); ctx.fillRect(0, H - lb, W, lb); }
   const sc = sceneAt(T); chapter(sc, T - sc.t0);
   subtitles(T);
-  let flash = 0; for (const [th, k] of HITS) if (T >= th && T < th + 1.5) flash += .6 * k * Math.exp(-(T - th) * 5);
-  if (flash > .01) { ctx.fillStyle = `rgba(235,245,255,${Math.min(.8, flash)})`; ctx.fillRect(0, 0, W, H); }
 }
 const SHUTTER = .5, JIT = [[.5, .5], [.25, .75], [.75, .25], [.125, .625], [.625, .125], [.375, .375], [.875, .875], [.0625, .5625]];
 function frame(T, fps = 30, samples = 1) {
