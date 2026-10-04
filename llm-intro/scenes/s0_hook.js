@@ -1,16 +1,17 @@
-// s0_hook: black -> a gold caret -> "The cat sat on the" is typed -> next-word bars -> "mat" -> everything is drawn into the gold title.
-// local time 0..5 s (global = local). Letterbox is closed until 3.1 s, so everything before that lives in y 138..942.
+// s0_hook (2:50 cut): black -> a gold caret -> "The cat sat on the" is typed -> next-word bars -> "mat" -> everything is drawn into the gold title.
+// local time 0..10 s (global = local). The letterbox is closed until 6.2 s, so everything before that lives in y 138..942.
+// pages: A 0-2.7 typing | B 2.7-4.3 bars + "mat" | hold 4.3-5.2 | C 5.2-6.25 dissolve into particles | hit 6.25 | D title, English 6.7, tagline 7.3, hold to 9.6
 const R = mulberry(20260000);
-const HK = { cx: W / 2, size: 100, y0: 450, y1: 330, tHit: 3.125, T0: .5, DT: .055, rel: 2.98, titleCy: 428, titleSize: 200, titleLs: 34, titleStr: '大语言模型' };
+const HK = { cx: W / 2, size: 100, y0: 450, y1: 330, tHit: 6.25, T0: .5, DT: .12, rel: 5.25, relT: 5.15, titleCy: 428, titleSize: 200, titleLs: 34, titleStr: '大语言模型', tEn: 6.7, tTag: 7.3 };
 const HK_FULL = 'The cat sat on the mat';                        // 22 characters; the last 4 (" mat") are typed in at 2.0 s
-const HK_TYPE_T = i => i < 18 ? HK.T0 + i * HK.DT : [1.99, 2.04, 2.09, 2.14][i - 18];
+const HK_TYPE_T = i => i < 18 ? HK.T0 + i * HK.DT : [3.94, 4.0, 4.09, 4.18][i - 18];   // 18 characters at 0.12 s, then ' mat' (the gold word lands at 4.0-4.3)
 const HK_BARS = STORY.next.slice(0, 5);                         // mat, floor, couch, bed, sofa (then a fan of tiny bars for the rest of the vocabulary)
-const HK_B = { x0: 640, k: 1750, y0: 470, dy: 64, h: 26, tUnfurl: 1.60, stag: .025, dur: .24 };
+const HK_B = { x0: 640, k: 1750, y0: 470, dy: 64, h: 26, tUnfurl: 3.0, stag: .08, dur: .45, tGold: 3.55 };
 const hkAdv = () => measure('M', HK.size, F_MONO, 400);
 const hkLeftFinal = () => HK.cx - HK_FULL.length * hkAdv() / 2;
 const hkRowY = i => HK_B.y0 + i * HK_B.dy;
-const hkBarRel = i => HK.rel + .01 * i;                            // when row i starts turning into particles (mat first: the gold leads, the blue follows)
-const hkSentRel = (u, gold) => gold ? HK.rel + .01 + .03 * u : HK.rel + .02 + .04 * u;   // sentence glyphs -> particles; the gold 'mat' goes first
+const hkBarRel = i => HK.rel + .03 * i;                            // when row i starts turning into particles (mat first: the gold leads, the blue follows)
+const hkSentRel = (u, gold) => gold ? HK.rel : HK.rel + .06 + .22 * u;   // sentence glyphs -> particles; the gold 'mat' goes first, the rest follows left to right
 
 // load-time constants -----------------------------------------------------------------------------------------------
 const HK_MOTES = Array.from({ length: 170 }, () => ({ x: R() * W, y: 150 + R() * 780, z: .2 + R() * .8, p: R() * TAU, sp: 6 + R() * 14 }));
@@ -47,9 +48,9 @@ function hkBuild() {
   const P = [];
   const mk = (src, tg, cls, rel) => src.forEach((s, i) => P.push({ sx: s.x ?? s[0], sy: s.y ?? s[1], tx: tg[i][0], ty: tg[i][1], cls, ...rel(s, i), ph: r(), z: .3 + r() * .7, sg: r() < .5 ? -1 : 1 }));
   const sSrc = sent.map(s => ({ x: s[0], y: s[1] })).sort((a, b) => a.x - b.x), xmin = sSrc[0].x, xmax = sSrc[sSrc.length - 1].x;
-  mk(sSrc, take(sizeS), 1, s => { const u = (s.x - xmin) / (xmax - xmin), gold = s.x > left + adv * 19, rel = hkSentRel(u, gold); return { r: rel, ta: HK.tHit - .01 - .02 * r(), gold }; });
-  mk(bars.sort((a, b) => a.x - b.x), take(sizeB), 2, b => ({ r: hkBarRel(b.row) + .04 * r(), ta: HK.tHit - .01 - .03 * r(), gold: b.row === 0 }));
-  mk(dust.sort((a, b) => a.x - b.x), take(sizeD), 0, () => { const u = r(); return { r: 2.0 + .8 * Math.pow(u, .8), ta: 3.0 + .1 * r(), gold: false }; });
+  mk(sSrc, take(sizeS), 1, s => { const u = (s.x - xmin) / (xmax - xmin), gold = s.x > left + adv * 19, rel = hkSentRel(u, gold); return { r: rel, ta: HK.tHit - .05 - .06 * r(), gold }; });
+  mk(bars.sort((a, b) => a.x - b.x), take(sizeB), 2, b => ({ r: hkBarRel(b.row) + .08 * r(), ta: HK.tHit - .05 - .06 * r(), gold: b.row === 0 }));
+  mk(dust.sort((a, b) => a.x - b.x), take(sizeD), 0, () => { const u = r(); return { r: 4.9 + .9 * Math.pow(u, .8), ta: HK.tHit - .2 + .12 * r(), gold: false }; });
   if (typeof fontsReady !== 'undefined' && fontsReady) HK_PTS = P; else return P;
   return HK_PTS;
 }
@@ -69,7 +70,7 @@ function hkParticles(lt) {
   const P = hkBuild(), buckets = Array.from({ length: 24 }, () => []), lines = [];
   const tau = lt - HK.tHit;
   for (const p of P) {
-    const dustA = p.cls ? 1 : sstep(.7, 1.7, lt) * .34;
+    const dustA = p.cls ? 1 : sstep(.9, 2.4, lt) * .3;
     if (p.cls && lt < p.r) continue;                              // sentence/bar particles are invisible until their source dissolves
     if (tau > 0 && tau > .3 + 1.3 * p.ph) continue;
     let [x, y] = hkPos(p, lt);
@@ -94,7 +95,7 @@ function hkParticles(lt) {
   if (lines.length) {
     ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(190,225,255,.5)'; ctx.beginPath();
     for (let i = 0; i < lines.length; i += 5) { ctx.moveTo(lines[i], lines[i + 1]); ctx.lineTo(lines[i + 2], lines[i + 3]); }
-    ctx.globalAlpha = .11; ctx.stroke();
+    ctx.globalAlpha = .08; ctx.stroke();
   }
   buckets.forEach((b, bi) => {
     if (!b.length) return;
