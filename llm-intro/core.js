@@ -289,6 +289,7 @@ const STORY = {
   text: 'The cat sat on the', tokens: ['The', ' cat', ' sat', ' on', ' the'], ids: [464, 3797, 3332, 319, 262],
   answer: 'mat', next: [['mat', .41], ['floor', .19], ['couch', .11], ['bed', .08], ['sofa', .07], ['roof', .05], ['rug', .04], ['…', .05]],
   afterwards: [' and', ' purred', '.'],                                       // what the loop writes after "mat"
+  untrained: [['banana', .04], ['quantum', .04], ['seven', .03], ['purple', .03], ['mat', .01], ['…', .85]],   // an untrained model's guess (scene 5 start, scene 6 start); P(mat)=1% -> loss = -ln(.01) = 4.6
 };
 
 // ======================================================================== scene API
